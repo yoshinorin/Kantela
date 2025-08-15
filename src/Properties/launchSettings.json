@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Kantela (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Kantela (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

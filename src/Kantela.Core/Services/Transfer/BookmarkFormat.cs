@@ -18,7 +18,8 @@ public sealed record ImportedSite(
     string? FeedUrl,
     DateTime? CreatedAt = null,
     DateTime? LastVisitedAt = null,
-    DateTime? LastPreviewedAt = null);
+    DateTime? LastPreviewedAt = null,
+    string? Alias = null);
 
 public sealed record ImportResult(int Added, int SkippedDuplicates, int SkippedInvalid);
 

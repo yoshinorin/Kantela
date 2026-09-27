@@ -123,7 +123,7 @@ public sealed partial class MainWindow : Window
     private void UpdatePreviewHeader()
     {
         PreviewHeader.Visibility = SelectedSite is null ? Visibility.Collapsed : Visibility.Visible;
-        PreviewTitle.Text = SelectedSite?.Title ?? string.Empty;
+        PreviewTitle.Text = SelectedSite?.DisplayName ?? string.Empty;
     }
 
     private Task ShowPreviewAsync() =>

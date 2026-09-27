@@ -6,6 +6,7 @@ using Kantela.Core;
 using Kantela.Core.Data;
 using Kantela.Core.Services;
 using Kantela.Core.Services.Transfer;
+using Kantela.Core.Services.Web;
 using Kantela.Core.ViewModels;
 using Kantela.Services;
 using Microsoft.EntityFrameworkCore;
@@ -57,9 +58,13 @@ public partial class App : Application
             db.Database.Migrate();
         }
 
+        string version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+        HttpWebClient webClient = new(HttpWebClient.CreateHttpClient(version), LoggerFactory.CreateLogger<HttpWebClient>());
+
         MainWindow? window = null;
         MainViewModel viewModel = new(
             new SiteService(DbContextFactory, TimeProvider.System, LoggerFactory.CreateLogger<SiteService>()),
+            new SiteInspector(webClient, LoggerFactory.CreateLogger<SiteInspector>()),
             new BookmarkTransferService(
                 DbContextFactory, _backupService, TimeProvider.System, LoggerFactory.CreateLogger<BookmarkTransferService>()),
             new SettingsService(Paths.Settings, LoggerFactory.CreateLogger<SettingsService>()),

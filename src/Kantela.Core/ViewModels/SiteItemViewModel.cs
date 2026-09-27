@@ -7,7 +7,12 @@ namespace Kantela.Core.ViewModels;
 public sealed partial class SiteItemViewModel : ObservableObject
 {
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayName))]
     private string _title;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayName))]
+    private string? _alias;
 
     [ObservableProperty]
     private string _url;
@@ -31,6 +36,7 @@ public sealed partial class SiteItemViewModel : ObservableObject
     {
         Id = site.Id;
         _title = site.Title;
+        _alias = site.Alias;
         _url = site.Url;
         _feedUrl = site.FeedUrl;
         _lastVisitedAt = site.LastVisitedAt;
@@ -39,6 +45,8 @@ public sealed partial class SiteItemViewModel : ObservableObject
 
     public int Id { get; }
 
+    public string DisplayName => Alias ?? Title;
+
     public string LastVisitedText => FormatDate(LastVisitedAt);
 
     public string LastPreviewedText => FormatDate(LastPreviewedAt);
@@ -46,6 +54,7 @@ public sealed partial class SiteItemViewModel : ObservableObject
     public void Apply(Site site)
     {
         Title = site.Title;
+        Alias = site.Alias;
         Url = site.Url;
         FeedUrl = site.FeedUrl;
         LastVisitedAt = site.LastVisitedAt;

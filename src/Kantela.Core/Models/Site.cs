@@ -6,6 +6,9 @@ public class Site
 
     public required string Title { get; set; }
 
+    // Optional name chosen by the user; shown instead of Title when set.
+    public string? Alias { get; set; }
+
     public required string Url { get; set; }
 
     public string? FeedUrl { get; set; }

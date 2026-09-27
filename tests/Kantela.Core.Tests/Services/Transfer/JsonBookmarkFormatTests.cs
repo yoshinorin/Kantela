@@ -16,7 +16,7 @@ public sealed class JsonBookmarkFormatTests
         List<Site> sites =
         [
             new() { Title = "B", Url = "https://b.invalid/", CreatedAt = createdAt },
-            new() { Title = "A", Url = "https://a.invalid/", FeedUrl = "https://a.invalid/feed", CreatedAt = createdAt, LastVisitedAt = visitedAt, LastPreviewedAt = previewedAt },
+            new() { Title = "A", Url = "https://a.invalid/", FeedUrl = "https://a.invalid/feed", CreatedAt = createdAt, LastVisitedAt = visitedAt, LastPreviewedAt = previewedAt, Alias = "Alias" },
         ];
         using MemoryStream stream = new();
 
@@ -28,7 +28,7 @@ public sealed class JsonBookmarkFormatTests
             new[]
             {
                 new ImportedSite("B", "https://b.invalid/", null, createdAt, null),
-                new ImportedSite("A", "https://a.invalid/", "https://a.invalid/feed", createdAt, visitedAt, previewedAt),
+                new ImportedSite("A", "https://a.invalid/", "https://a.invalid/feed", createdAt, visitedAt, previewedAt, "Alias"),
             },
             imported.ToArray());
         Assert.AreEqual(DateTimeKind.Utc, imported[1].LastVisitedAt!.Value.Kind);
@@ -37,7 +37,7 @@ public sealed class JsonBookmarkFormatTests
     [TestMethod]
     public void Read_AcceptsOlderDocumentsAndKeepsFileOrder()
     {
-        // Older exports have "sortOrder" and no "lastPreviewedAt".
+        // Older exports have "sortOrder" and no "lastPreviewedAt" or "alias".
         string json = """
             { "version": 1, "exportedAt": "2026-01-01T00:00:00Z", "sites": [
               { "title": "B", "url": "https://b.invalid/", "feedUrl": null, "sortOrder": 1, "createdAt": "2026-01-01T00:00:00Z", "lastVisitedAt": null },
@@ -48,7 +48,7 @@ public sealed class JsonBookmarkFormatTests
         IReadOnlyList<ImportedSite> imported = JsonBookmarkFormat.Read(stream);
 
         CollectionAssert.AreEqual(new[] { "B", "A" }, imported.Select(s => s.Title).ToArray());
-        Assert.IsTrue(imported.All(s => s.LastPreviewedAt is null));
+        Assert.IsTrue(imported.All(s => s.LastPreviewedAt is null && s.Alias is null));
     }
 
     [TestMethod]

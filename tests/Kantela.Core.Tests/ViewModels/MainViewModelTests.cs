@@ -17,6 +17,7 @@ public sealed class MainViewModelTests
     private FakeBrowserLauncher _browser = null!;
     private FakeFilePicker _filePicker = null!;
     private FakeDialogService _dialogs = null!;
+    private FakeWebClient _web = null!;
     private BookmarkTransferService _transferService = null!;
     private MainViewModel _viewModel = null!;
 
@@ -29,6 +30,7 @@ public sealed class MainViewModelTests
         _browser = new FakeBrowserLauncher();
         _filePicker = new FakeFilePicker();
         _dialogs = new FakeDialogService();
+        _web = new FakeWebClient();
         _transferService = new(
             _database.Factory,
             new BackupService(_database.Factory, _directory.Path, TimeProvider.System, NullLogger<BackupService>.Instance),
@@ -93,16 +95,51 @@ public sealed class MainViewModelTests
     }
 
     [TestMethod]
-    public async Task Add_ReopensEditorOnDuplicateUrlUntilSaved()
+    public async Task Add_KeepsEditorOpenOnDuplicateUrlWithoutFetchingItUntilSaved()
     {
         await AddAndLoadAsync();
-        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "Dup", "https://a.invalid/"));
+        _web.AddHtml("https://b.invalid/", "<title>B</title>");
+        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "Dup", "http://A.invalid"));
         _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "New", "https://b.invalid/"));
 
         await _viewModel.AddCommand.ExecuteAsync(null);
 
-        Assert.HasCount(1, _dialogs.Errors);
-        CollectionAssert.AreEqual(new[] { "A", "New" }, _viewModel.Sites.Select(s => s.Title).ToArray());
+        Assert.Contains("already registered", _dialogs.EditorErrors.Single());
+        CollectionAssert.AreEqual(new[] { new Uri("https://b.invalid/") }, _web.Requests);
+        CollectionAssert.AreEqual(new[] { "A", "New" }, Titles());
+    }
+
+    [TestMethod]
+    public async Task Add_FillsTitleAndFeedFromPageAndShowsAlias()
+    {
+        _web.AddHtml("https://a.invalid/", """
+            <html><head><title>Site A</title>
+            <link rel="alternate" type="application/rss+xml" href="/feed.xml"></head></html>
+            """);
+        _dialogs.EditorResponses.Enqueue(editor =>
+        {
+            editor.Alias = " My A ";
+            return Fill(editor, "", "https://a.invalid/");
+        });
+
+        await _viewModel.AddCommand.ExecuteAsync(null);
+
+        SiteItemViewModel site = _viewModel.Sites.Single();
+        Assert.AreEqual("Site A", site.Title);
+        Assert.AreEqual("My A", site.DisplayName);
+        Assert.AreEqual("https://a.invalid/feed.xml", site.FeedUrl);
+        Assert.AreEqual("My A", (await _service.GetAllAsync()).Single().Alias);
+    }
+
+    [TestMethod]
+    public async Task Add_DoesNotSaveUnreachableSite()
+    {
+        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "A", "https://a.invalid/"));
+
+        await _viewModel.AddCommand.ExecuteAsync(null);
+
+        Assert.Contains("Could not reach", _dialogs.EditorErrors.Single());
+        Assert.IsEmpty(await _service.GetAllAsync());
     }
 
     [TestMethod]
@@ -122,6 +159,8 @@ public sealed class MainViewModelTests
 
         await _viewModel.EditCommand.ExecuteAsync(site);
 
+        // The URL did not change and the title is given, so nothing is fetched.
+        Assert.IsEmpty(_web.Requests);
         Assert.AreEqual("Renamed", site.Title);
         Assert.AreEqual("Renamed", (await _service.GetAllAsync()).Single().Title);
     }
@@ -198,6 +237,7 @@ public sealed class MainViewModelTests
         await _viewModel.DeleteCommand.ExecuteAsync(_viewModel.Sites.Single(s => s.Title == "b"));
         CollectionAssert.AreEqual(new[] { 2, 1 }, Numbers());
 
+        _web.AddHtml("https://d.invalid/", "<title>d</title>");
         _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "d", "https://d.invalid/"));
         await _viewModel.AddCommand.ExecuteAsync(null);
         CollectionAssert.AreEqual(new[] { 2, 1, 3 }, Numbers());
@@ -254,6 +294,7 @@ public sealed class MainViewModelTests
 
     private MainViewModel CreateViewModel() => new(
         _service,
+        new SiteInspector(_web, NullLogger<SiteInspector>.Instance),
         _transferService,
         new SettingsService(Path.Combine(_directory.Path, "settings.json"), NullLogger<SettingsService>.Instance),
         _browser,

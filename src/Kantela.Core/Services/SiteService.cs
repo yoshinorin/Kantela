@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Kantela.Core.Services;
 
-public sealed record SiteInput(string Title, string Url, string? FeedUrl);
+public sealed record SiteInput(string Title, string Url, string? FeedUrl, string? Alias = null);
 
 public sealed class DuplicateSiteUrlException(string url)
-    : Exception($"A site with the URL '{url}' already exists.")
+    : SiteRegistrationException($"'{url}' is already registered.")
 {
     public string Url { get; } = url;
 }
@@ -36,6 +36,7 @@ public sealed class SiteService(
         Site site = new()
         {
             Title = normalized.Title,
+            Alias = normalized.Alias,
             Url = normalized.Url,
             FeedUrl = normalized.FeedUrl,
             CreatedAt = timeProvider.GetUtcNow().UtcDateTime,
@@ -55,6 +56,7 @@ public sealed class SiteService(
         await EnsureUrlIsAvailableAsync(db, normalized.Url, id, cancellationToken);
 
         site.Title = normalized.Title;
+        site.Alias = normalized.Alias;
         site.Url = normalized.Url;
         site.FeedUrl = normalized.FeedUrl;
         await db.SaveChangesAsync(cancellationToken);
@@ -91,11 +93,19 @@ public sealed class SiteService(
         return previewedAt;
     }
 
+    // Throws DuplicateSiteUrlException when another site has the same URL after normalization (see UrlNormalizer).
+    public async Task EnsureUrlIsAvailableAsync(string url, int? excludedId = null, CancellationToken cancellationToken = default)
+    {
+        await using KantelaDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await EnsureUrlIsAvailableAsync(db, url.Trim(), excludedId, cancellationToken);
+    }
+
     private static SiteInput Normalize(SiteInput input)
     {
         string title = input.Title.Trim();
         string url = input.Url.Trim();
         string? feedUrl = string.IsNullOrWhiteSpace(input.FeedUrl) ? null : input.FeedUrl.Trim();
+        string? alias = string.IsNullOrWhiteSpace(input.Alias) ? null : input.Alias.Trim();
 
         if (title.Length == 0)
         {
@@ -112,14 +122,19 @@ public sealed class SiteService(
             throw new ArgumentException($"'{feedUrl}' is not a valid web URL.", nameof(input));
         }
 
-        return new SiteInput(title, url, feedUrl);
+        return new SiteInput(title, url, feedUrl, alias);
     }
 
+    // Compared in memory because the normalized form is not stored; the number of sites is small.
     private static async Task EnsureUrlIsAvailableAsync(
         KantelaDbContext db, string url, int? excludedId, CancellationToken cancellationToken)
     {
-        bool exists = await db.Sites.AnyAsync(s => s.Url == url && s.Id != excludedId, cancellationToken);
-        if (exists)
+        string key = UrlNormalizer.ComparisonKey(url);
+        List<string> otherUrls = await db.Sites
+            .Where(s => s.Id != excludedId)
+            .Select(s => s.Url)
+            .ToListAsync(cancellationToken);
+        if (otherUrls.Any(u => UrlNormalizer.ComparisonKey(u) == key))
         {
             throw new DuplicateSiteUrlException(url);
         }

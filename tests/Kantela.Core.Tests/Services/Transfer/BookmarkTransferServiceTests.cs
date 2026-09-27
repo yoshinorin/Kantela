@@ -39,7 +39,7 @@ public sealed class BookmarkTransferServiceTests
     }
 
     [TestMethod]
-    public async Task Merge_AppendsNewSitesAndSkipsDuplicatesAndInvalidUrls()
+    public async Task Merge_AppendsNewSitesAndSkipsNormalizedDuplicatesAndInvalidUrls()
     {
         await _siteService.AddAsync(new SiteInput("Existing", "https://a.invalid/", null));
         DateTime visitedAt = new(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -47,9 +47,9 @@ public sealed class BookmarkTransferServiceTests
 
         ImportResult result = await _transferService.ImportAsync(
             [
-                new ImportedSite("Dup of existing", "https://a.invalid/", null),
-                new ImportedSite(" B ", " https://b.invalid/ ", "not a url", LastVisitedAt: visitedAt, LastPreviewedAt: previewedAt),
-                new ImportedSite("Dup in file", "https://b.invalid/", null),
+                new ImportedSite("Dup of existing", "http://A.invalid", null),
+                new ImportedSite(" B ", " https://b.invalid/ ", "not a url", LastVisitedAt: visitedAt, LastPreviewedAt: previewedAt, Alias: " Bee "),
+                new ImportedSite("Dup in file", "https://b.invalid/#top", null),
                 new ImportedSite("Invalid", "javascript:alert(1)", null),
                 new ImportedSite("", "https://c.invalid/", "https://c.invalid/feed"),
             ],
@@ -64,6 +64,8 @@ public sealed class BookmarkTransferServiceTests
         Assert.IsNull(sites[1].FeedUrl);
         Assert.AreEqual(visitedAt, sites[1].LastVisitedAt);
         Assert.AreEqual(previewedAt, sites[1].LastPreviewedAt);
+        Assert.AreEqual("Bee", sites[1].Alias);
+        Assert.IsNull(sites[2].Alias);
         Assert.AreEqual(s_now.UtcDateTime, sites[1].CreatedAt);
         Assert.AreEqual("https://c.invalid/feed", sites[2].FeedUrl);
     }

@@ -28,6 +28,7 @@
 | Microsoft.EntityFrameworkCore.Tools | 10.0.12 | Kantela.Core |
 | CommunityToolkit.Mvvm | 8.4.2 | Kantela.Core |
 | ZLogger | 2.5.10 | Kantela |
+| AngleSharp | 1.8.2 | Kantela.Core (HTML parsing for site registration; added 2026-09-27) |
 | MSTest.Sdk (project SDK) | 4.4.1 | Kantela.Core.Tests |
 
 Versions are the latest stable releases on NuGet as of 2026-09-27.
@@ -63,6 +64,7 @@ class Site
 {
     int Id;
     string Title;
+    string? Alias;               // Optional name shown instead of Title (added by migration AddSiteAlias)
     string Url;                  // Unique
     string? FeedUrl;
     DateTime CreatedAt;          // UTC
@@ -75,7 +77,7 @@ class Site
 - All sites are kept in a single **flat** list. There is no folder/category grouping.
 - There is no stored display order (the former `SortOrder` column was dropped by migration `RemoveSortOrder`). The list is sorted in memory (see "6. UI"); the number of sites is expected to be small.
 - Registration order is `Id` order.
-- URL comparison (uniqueness, import matching) uses ordinal comparison of the trimmed string.
+- URL comparison (uniqueness, import matching) uses `UrlNormalizer.ComparisonKey`: the scheme (http/https), host case, default port, fragment and trailing slashes are ignored; the path and query are compared as is. The key is not stored; sites are compared in memory. The stored URL is the trimmed input. The database also keeps a unique index on the raw `Url`.
 - Tags are out of scope for now. They can be added later as a many-to-many relation.
 - Update-check fields are added in Phase 4 via a migration (see section 9).
 
@@ -86,7 +88,7 @@ class Site
 - Opening a site launches the default browser (`Launcher.LaunchUriAsync`) and records `LastVisitedAt`.
 - Selecting a site shows a screenshot preview (see "Preview" below). A preview is not a visit.
 - Sorting by registration order, name, last previewed date or last visited date.
-- Add / edit / delete sites.
+- Add / edit / delete sites. Adding and editing check the site over the network (see "Site Registration" below).
 - OPML import/export.
 - JSON import/export (covers fields that OPML cannot hold).
 - Automatic JSON backup on exit.
@@ -107,7 +109,7 @@ class Site
 |---|---|
 | Main | Left: a single `ListView` of all sites with clickable column headers (#, Name, Previewed, Visited). Each row shows its registration number, title and URL, last previewed date, last visited date, and (Phase 4) an update indicator. Right: the preview of the selected site with an "Open in browser" button. The border between them can be dragged |
 | Command bar | Add, Import (JSON/OPML), Export (JSON/OPML); "Open data folder" in the overflow menu |
-| Site dialog | `ContentDialog` for Title, Url, FeedUrl |
+| Site dialog | `ContentDialog` for Url, Title (optional), Alias (optional), FeedUrl (optional). Saving keeps the dialog open while the site is checked, and shows errors inside the dialog |
 
 Interactions:
 
@@ -134,6 +136,27 @@ Interactions:
 - No browsing data is kept: the WebView2 runs in InPrivate mode, and its user data folder is deleted before the first use in each run.
 - Requires the WebView2 Runtime (preinstalled on Windows 11).
 
+### Site Registration
+
+Done by `SiteInspector` when a site is saved from the dialog (add or edit). Import does not access the network.
+
+1. Duplicate check by normalized URL. A registered site is not fetched.
+2. The site's page is fetched when the site is new, its URL changed, or the title is empty. If it cannot be fetched (network error, timeout, or a 4xx/5xx status after redirects), the site is not saved.
+3. An empty title is taken from `<title>` (whitespace collapsed), or the URL when the page has none.
+4. An empty feed URL is detected from `<link rel="alternate" type="application/rss+xml|application/atom+xml">`, resolved against the final page address, when the site is new or its URL changed.
+   - None: saved without a feed.
+   - One: used.
+   - Several: not saved; the candidates are listed so that the user enters one.
+5. A feed URL entered by the user (new, or changed when editing) must be reachable and its root element must be `rss`, `feed` or `RDF`; otherwise the site is not saved.
+
+HTTP (`HttpWebClient`):
+
+- `User-Agent: Kantela/<version> (+https://github.com/yoshinorin/Kantela)`.
+- Timeout 10 seconds; redirects are followed; at most 2 MB of each response is read.
+- Character encodings from `Content-Type` or `<meta>` are handled by AngleSharp, with the code pages provider registered for legacy encodings such as Shift_JIS.
+- Feed XML is read with DTD processing ignored and no resolver.
+- Closing the dialog while checking cancels the check.
+
 ## 7. Import / Export
 
 ### JSON
@@ -149,7 +172,8 @@ Interactions:
       "feedUrl": "https://example.com/feed.xml",
       "createdAt": "2026-01-01T00:00:00Z",
       "lastVisitedAt": null,
-      "lastPreviewedAt": null
+      "lastPreviewedAt": null,
+      "alias": null
     }
   ]
 }
@@ -157,7 +181,7 @@ Interactions:
 
 - Database IDs are not exported.
 - `version` identifies the schema for future migrations of the format.
-- `lastPreviewedAt` is optional, so files exported before it was added can still be imported.
+- `lastPreviewedAt` and `alias` are optional, so files exported before they were added can still be imported. OPML does not carry the alias.
 - Sites are written in registration order and imported in file order. `sortOrder` in files exported by older versions is ignored.
 
 ### OPML (2.0)

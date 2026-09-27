@@ -11,10 +11,10 @@ namespace Kantela.Services;
 
 internal sealed class DialogService(Func<XamlRoot> xamlRootProvider) : IDialogService
 {
-    public async Task<bool> ShowSiteEditorAsync(SiteEditorViewModel editor)
+    public async Task ShowSiteEditorAsync(SiteEditorViewModel editor)
     {
         SiteEditorDialog dialog = new(editor) { XamlRoot = xamlRootProvider() };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        await dialog.ShowAsync();
     }
 
     public async Task<ImportMode?> ChooseImportModeAsync()

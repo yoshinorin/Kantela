@@ -29,9 +29,10 @@ public sealed class SiteServiceTests
     {
         await _service.AddAsync(new SiteInput("First", "https://a.invalid/", null));
 
-        Site site = await _service.AddAsync(new SiteInput("  Second ", " https://b.invalid/ ", "  "));
+        Site site = await _service.AddAsync(new SiteInput("  Second ", " https://b.invalid/ ", "  ", " Mine "));
 
         Assert.AreEqual("Second", site.Title);
+        Assert.AreEqual("Mine", site.Alias);
         Assert.AreEqual("https://b.invalid/", site.Url);
         Assert.IsNull(site.FeedUrl);
         Assert.AreEqual(s_now.UtcDateTime, site.CreatedAt);
@@ -49,13 +50,13 @@ public sealed class SiteServiceTests
     }
 
     [TestMethod]
-    public async Task AddAsync_RejectsDuplicateUrl()
+    public async Task AddAsync_RejectsDuplicateUrlAfterNormalization()
     {
         await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
 
         DuplicateSiteUrlException ex = await Assert.ThrowsExactlyAsync<DuplicateSiteUrlException>(
-            () => _service.AddAsync(new SiteInput("B", " https://a.invalid/", null)));
-        Assert.AreEqual("https://a.invalid/", ex.Url);
+            () => _service.AddAsync(new SiteInput("B", " http://A.invalid", null)));
+        Assert.AreEqual("http://A.invalid", ex.Url);
     }
 
     [TestMethod]

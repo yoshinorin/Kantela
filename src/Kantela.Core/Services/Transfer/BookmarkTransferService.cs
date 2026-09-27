@@ -71,7 +71,9 @@ public sealed class BookmarkTransferService(
             await db.Sites.ExecuteDeleteAsync(cancellationToken);
         }
 
-        HashSet<string> knownUrls = new(await db.Sites.Select(s => s.Url).ToListAsync(cancellationToken), StringComparer.Ordinal);
+        HashSet<string> knownUrls = new(
+            (await db.Sites.Select(s => s.Url).ToListAsync(cancellationToken)).Select(UrlNormalizer.ComparisonKey),
+            StringComparer.Ordinal);
         int added = 0;
         int skippedDuplicates = 0;
         int skippedInvalid = 0;
@@ -86,7 +88,7 @@ public sealed class BookmarkTransferService(
                 continue;
             }
 
-            if (!knownUrls.Add(url))
+            if (!knownUrls.Add(UrlNormalizer.ComparisonKey(url)))
             {
                 logger.LogInformation("Skipped import of {Url} because it is already registered", url);
                 skippedDuplicates++;
@@ -104,6 +106,7 @@ public sealed class BookmarkTransferService(
             db.Sites.Add(new Site
             {
                 Title = title.Length == 0 ? url : title,
+                Alias = string.IsNullOrWhiteSpace(imported.Alias) ? null : imported.Alias.Trim(),
                 Url = url,
                 FeedUrl = feedUrl,
                 CreatedAt = imported.CreatedAt ?? now,

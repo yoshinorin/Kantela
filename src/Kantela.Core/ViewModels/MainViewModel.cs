@@ -10,6 +10,7 @@ namespace Kantela.Core.ViewModels;
 
 public sealed partial class MainViewModel(
     SiteService siteService,
+    SiteInspector siteInspector,
     BookmarkTransferService transferService,
     SettingsService settingsService,
     IBrowserLauncher browserLauncher,
@@ -78,47 +79,19 @@ public sealed partial class MainViewModel(
     private Task RecordPreviewAsync(SiteItemViewModel site) => RunAsync(async () =>
         site.LastPreviewedAt = await siteService.MarkPreviewedAsync(site.Id));
 
+    // The editor stays open until the site is saved or the user cancels; errors are shown in the editor.
     [RelayCommand]
-    private Task AddAsync() => RunAsync(async () =>
-    {
-        SiteEditorViewModel editor = new();
-        while (await dialogService.ShowSiteEditorAsync(editor))
-        {
-            try
-            {
-                Site site = await siteService.AddAsync(editor.ToInput());
-                Sites.Add(new SiteItemViewModel(site) { Number = Sites.Count + 1 });
-                return;
-            }
-            catch (DuplicateSiteUrlException ex)
-            {
-                await dialogService.ShowErrorAsync($"'{ex.Url}' is already registered.");
-            }
-        }
-    });
+    private Task AddAsync() => RunAsync(() => dialogService.ShowSiteEditorAsync(new SiteEditorViewModel(
+        (input, cancellationToken) => SaveSiteAsync(input, null, cancellationToken))));
 
     [RelayCommand]
-    private Task EditAsync(SiteItemViewModel site) => RunAsync(async () =>
-    {
-        SiteEditorViewModel editor = new(site);
-        while (await dialogService.ShowSiteEditorAsync(editor))
-        {
-            try
-            {
-                site.Apply(await siteService.UpdateAsync(site.Id, editor.ToInput()));
-                return;
-            }
-            catch (DuplicateSiteUrlException ex)
-            {
-                await dialogService.ShowErrorAsync($"'{ex.Url}' is already registered.");
-            }
-        }
-    });
+    private Task EditAsync(SiteItemViewModel site) => RunAsync(() => dialogService.ShowSiteEditorAsync(new SiteEditorViewModel(
+        site, (input, cancellationToken) => SaveSiteAsync(input, site, cancellationToken))));
 
     [RelayCommand]
     private Task DeleteAsync(SiteItemViewModel site) => RunAsync(async () =>
     {
-        bool confirmed = await dialogService.ConfirmAsync("Delete site", $"Delete '{site.Title}'?", "Delete");
+        bool confirmed = await dialogService.ConfirmAsync("Delete site", $"Delete '{site.DisplayName}'?", "Delete");
         if (!confirmed)
         {
             return;
@@ -182,6 +155,33 @@ public sealed partial class MainViewModel(
         await dialogService.ShowMessageAsync("Export completed", message);
     });
 
+    // The duplicate check runs first so that a registered site is not fetched again.
+    private async Task SaveSiteAsync(SiteInput input, SiteItemViewModel? existing, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await siteService.EnsureUrlIsAvailableAsync(input.Url, existing?.Id, cancellationToken);
+            SiteInput? current = existing is null ? null : new SiteInput(existing.Title, existing.Url, existing.FeedUrl);
+            SiteInput inspected = await siteInspector.InspectAsync(input, current, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (existing is null)
+            {
+                Site site = await siteService.AddAsync(inspected, CancellationToken.None);
+                Sites.Add(new SiteItemViewModel(site) { Number = Sites.Count + 1 });
+            }
+            else
+            {
+                existing.Apply(await siteService.UpdateAsync(existing.Id, inspected, CancellationToken.None));
+            }
+        }
+        catch (Exception ex) when (ex is not SiteRegistrationException and not OperationCanceledException)
+        {
+            logger.LogError(ex, "Failed to save site {Url}", input.Url);
+            throw;
+        }
+    }
+
     private void Renumber()
     {
         int number = 1;
@@ -200,7 +200,7 @@ public sealed partial class MainViewModel(
         {
             int result = sort.Column switch
             {
-                SiteSortColumn.Title => direction * StringComparer.CurrentCultureIgnoreCase.Compare(a.Title, b.Title),
+                SiteSortColumn.Title => direction * StringComparer.CurrentCultureIgnoreCase.Compare(a.DisplayName, b.DisplayName),
                 SiteSortColumn.Previewed => CompareDates(a.LastPreviewedAt, b.LastPreviewedAt, direction),
                 SiteSortColumn.Visited => CompareDates(a.LastVisitedAt, b.LastVisitedAt, direction),
                 _ => 0,

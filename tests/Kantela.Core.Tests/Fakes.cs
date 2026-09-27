@@ -1,5 +1,7 @@
+using System.Text;
 using Kantela.Core.Services;
 using Kantela.Core.Services.Transfer;
+using Kantela.Core.Services.Web;
 using Kantela.Core.ViewModels;
 using Microsoft.Extensions.Logging;
 
@@ -36,7 +38,7 @@ internal sealed class FakeFilePicker : IFilePicker
 
 internal sealed class FakeDialogService : IDialogService
 {
-    // Each queued action edits the editor and returns whether the user saved.
+    // Each queued action edits the editor and returns whether the user pressed Save (false cancels).
     public Queue<Func<SiteEditorViewModel, bool>> EditorResponses { get; } = new();
 
     public ImportMode? SelectedImportMode { get; set; } = ImportMode.Merge;
@@ -47,8 +49,21 @@ internal sealed class FakeDialogService : IDialogService
 
     public List<string> Errors { get; } = [];
 
-    public Task<bool> ShowSiteEditorAsync(SiteEditorViewModel editor) =>
-        Task.FromResult(EditorResponses.TryDequeue(out Func<SiteEditorViewModel, bool>? respond) && respond(editor));
+    // Error messages shown in the editor after failed saves.
+    public List<string> EditorErrors { get; } = [];
+
+    public async Task ShowSiteEditorAsync(SiteEditorViewModel editor)
+    {
+        while (EditorResponses.TryDequeue(out Func<SiteEditorViewModel, bool>? respond) && respond(editor))
+        {
+            if (await editor.SaveAsync())
+            {
+                return;
+            }
+
+            EditorErrors.Add(editor.ErrorMessage!);
+        }
+    }
 
     public Task<bool> ConfirmAsync(string title, string message, string primaryButtonText) =>
         Task.FromResult(ConfirmResult);
@@ -88,4 +103,23 @@ internal sealed class TestDirectory : IDisposable
     public TestDirectory() => Directory.CreateDirectory(Path);
 
     public void Dispose() => Directory.Delete(Path, recursive: true);
+}
+
+internal sealed class FakeWebClient : IWebClient
+{
+    private readonly Dictionary<string, WebPage> _pages = new(StringComparer.Ordinal);
+
+    public List<Uri> Requests { get; } = [];
+
+    public void AddHtml(string url, string html, string? finalUrl = null) =>
+        _pages[url] = new WebPage(new Uri(finalUrl ?? url), "text/html; charset=utf-8", Encoding.UTF8.GetBytes(html));
+
+    public void AddFeed(string url) =>
+        _pages[url] = new WebPage(new Uri(url), "application/rss+xml", Encoding.UTF8.GetBytes("""<rss version="2.0"><channel /></rss>"""));
+
+    public Task<WebPage?> GetAsync(Uri uri, CancellationToken cancellationToken = default)
+    {
+        Requests.Add(uri);
+        return Task.FromResult(_pages.GetValueOrDefault(uri.AbsoluteUri));
+    }
 }

@@ -17,7 +17,8 @@ public interface IFilePicker
 
 public interface IDialogService
 {
-    Task<bool> ShowSiteEditorAsync(SiteEditorViewModel editor);
+    // Shows the editor until SiteEditorViewModel.SaveAsync succeeds or the user cancels.
+    Task ShowSiteEditorAsync(SiteEditorViewModel editor);
 
     Task<ImportMode?> ChooseImportModeAsync();
 

@@ -10,19 +10,34 @@
     DefaultButton="Primary"
     IsPrimaryButtonEnabled="{x:Bind Editor.CanSave, Mode=OneWay}">
 
-    <StackPanel Spacing="12" MinWidth="400">
-        <TextBox
-            Header="Title"
-            Text="{x:Bind Editor.Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+    <StackPanel Spacing="12" MinWidth="400" MaxWidth="560">
         <TextBox
             Header="URL"
             PlaceholderText="https://example.com/"
             InputScope="Url"
             Text="{x:Bind Editor.Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
         <TextBox
+            Header="Title (optional)"
+            PlaceholderText="Taken from the page when empty"
+            Text="{x:Bind Editor.Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        <TextBox
+            Header="Alias (optional)"
+            PlaceholderText="Shown in the list instead of the title"
+            Text="{x:Bind Editor.Alias, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        <TextBox
             Header="Feed URL (optional)"
-            PlaceholderText="https://example.com/feed.xml"
+            PlaceholderText="Detected from the page when empty"
             InputScope="Url"
             Text="{x:Bind Editor.FeedUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind Editor.IsBusy, Mode=OneWay}">
+            <ProgressRing Width="16" Height="16" IsActive="{x:Bind Editor.IsBusy, Mode=OneWay}" />
+            <TextBlock Text="Checking the site..." />
+        </StackPanel>
+        <InfoBar
+            Severity="Error"
+            IsClosable="False"
+            IsOpen="{x:Bind Editor.HasError, Mode=OneWay}"
+            Message="{x:Bind Editor.ErrorMessage, Mode=OneWay}" />
     </StackPanel>
 </ContentDialog>

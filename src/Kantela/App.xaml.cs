@@ -62,6 +62,7 @@ public partial class App : Application
             new SiteService(DbContextFactory, TimeProvider.System, LoggerFactory.CreateLogger<SiteService>()),
             new BookmarkTransferService(
                 DbContextFactory, _backupService, TimeProvider.System, LoggerFactory.CreateLogger<BookmarkTransferService>()),
+            new SettingsService(Paths.Settings, LoggerFactory.CreateLogger<SettingsService>()),
             new BrowserLauncher(),
             new FilePicker(() => window!.AppWindow.Id),
             new DialogService(() => window!.Content.XamlRoot),

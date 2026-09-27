@@ -21,7 +21,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="420" MinWidth="280" MaxWidth="800" />
+            <ColumnDefinition Width="560" MinWidth="400" MaxWidth="1000" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" MinWidth="320" />
         </Grid.ColumnDefinitions>
@@ -50,61 +50,120 @@
             </CommandBar.SecondaryCommands>
         </CommandBar>
 
-        <ListView
-            x:Name="SitesListView"
-            Grid.Row="1"
-            ItemsSource="{x:Bind ViewModel.Sites}"
-            SelectionMode="Single"
-            SelectionChanged="Sites_SelectionChanged"
-            DoubleTapped="Sites_DoubleTapped"
-            KeyDown="Sites_KeyDown"
-            CanDragItems="True"
-            CanReorderItems="True"
-            AllowDrop="True"
-            DragItemsCompleted="Sites_DragItemsCompleted">
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="vm:SiteItemViewModel">
-                    <Grid Padding="0,8" ColumnSpacing="12" Background="Transparent">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.ContextFlyout>
-                            <MenuFlyout>
-                                <MenuFlyoutItem Text="Open in browser" Icon="Globe" Click="OpenMenuItem_Click" />
-                                <MenuFlyoutItem Text="Edit" Icon="Edit" Click="EditMenuItem_Click" />
-                                <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Text="Delete" Icon="Delete" Click="DeleteMenuItem_Click" />
-                            </MenuFlyout>
-                        </Grid.ContextFlyout>
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-                        <StackPanel>
+            <!-- Column widths and padding must match the item template and ItemContainerStyle below. -->
+            <Grid Padding="12,0" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="40" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="112" />
+                    <ColumnDefinition Width="112" />
+                </Grid.ColumnDefinitions>
+                <Grid.Resources>
+                    <Style x:Key="SortHeaderButtonStyle" TargetType="Button">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Padding" Value="0,6" />
+                        <Setter Property="HorizontalAlignment" Value="Stretch" />
+                        <Setter Property="HorizontalContentAlignment" Value="Left" />
+                    </Style>
+                </Grid.Resources>
+                <Button Tag="Added" Style="{StaticResource SortHeaderButtonStyle}" Click="SortHeader_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="#" />
+                        <FontIcon x:Name="AddedSortIcon" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Tag="Title" Style="{StaticResource SortHeaderButtonStyle}" Click="SortHeader_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Name" />
+                        <FontIcon x:Name="TitleSortIcon" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Tag="Previewed" Style="{StaticResource SortHeaderButtonStyle}" Click="SortHeader_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Previewed" />
+                        <FontIcon x:Name="PreviewedSortIcon" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Tag="Visited" Style="{StaticResource SortHeaderButtonStyle}" Click="SortHeader_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Visited" />
+                        <FontIcon x:Name="VisitedSortIcon" FontSize="12" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <ListView
+                x:Name="SitesListView"
+                Grid.Row="1"
+                ItemsSource="{x:Bind ViewModel.Sites}"
+                SelectionMode="Single"
+                SelectionChanged="Sites_SelectionChanged"
+                DoubleTapped="Sites_DoubleTapped"
+                KeyDown="Sites_KeyDown">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="12,0" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SiteItemViewModel">
+                        <Grid Padding="0,8" ColumnSpacing="12" Background="Transparent">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="112" />
+                                <ColumnDefinition Width="112" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.ContextFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="Open in browser" Icon="Globe" Click="OpenMenuItem_Click" />
+                                    <MenuFlyoutItem Text="Edit" Icon="Edit" Click="EditMenuItem_Click" />
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Delete" Icon="Delete" Click="DeleteMenuItem_Click" />
+                                </MenuFlyout>
+                            </Grid.ContextFlyout>
+
                             <TextBlock
-                                Text="{x:Bind Title, Mode=OneWay}"
-                                Style="{StaticResource BodyStrongTextBlockStyle}"
-                                TextTrimming="CharacterEllipsis" />
-                            <TextBlock
-                                Text="{x:Bind Url, Mode=OneWay}"
-                                Style="{StaticResource CaptionTextBlockStyle}"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock
-                                HorizontalAlignment="Right"
-                                Text="{x:Bind LastVisitedText, Mode=OneWay}"
+                                VerticalAlignment="Center"
+                                Text="{x:Bind Number, Mode=OneWay}"
                                 Style="{StaticResource CaptionTextBlockStyle}"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock
+                                    Text="{x:Bind Title, Mode=OneWay}"
+                                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Text="{x:Bind Url, Mode=OneWay}"
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
                             <TextBlock
-                                HorizontalAlignment="Right"
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
                                 Text="{x:Bind LastPreviewedText, Mode=OneWay}"
                                 Style="{StaticResource CaptionTextBlockStyle}"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
-                    </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+                            <TextBlock
+                                Grid.Column="3"
+                                VerticalAlignment="Center"
+                                Text="{x:Bind LastVisitedText, Mode=OneWay}"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
 
         <controls:ColumnSplitter
             Grid.Column="1"

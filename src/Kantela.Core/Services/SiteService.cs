@@ -23,8 +23,7 @@ public sealed class SiteService(
         await using KantelaDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         return await db.Sites
             .AsNoTracking()
-            .OrderBy(s => s.SortOrder)
-            .ThenBy(s => s.Id)
+            .OrderBy(s => s.Id)
             .ToListAsync(cancellationToken);
     }
 
@@ -34,13 +33,11 @@ public sealed class SiteService(
         await using KantelaDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await EnsureUrlIsAvailableAsync(db, normalized.Url, null, cancellationToken);
 
-        int? maxSortOrder = await db.Sites.MaxAsync(s => (int?)s.SortOrder, cancellationToken);
         Site site = new()
         {
             Title = normalized.Title,
             Url = normalized.Url,
             FeedUrl = normalized.FeedUrl,
-            SortOrder = (maxSortOrder ?? -1) + 1,
             CreatedAt = timeProvider.GetUtcNow().UtcDateTime,
         };
         db.Sites.Add(site);
@@ -92,30 +89,6 @@ public sealed class SiteService(
             .Where(s => s.Id == id)
             .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.LastPreviewedAt, previewedAt), cancellationToken);
         return previewedAt;
-    }
-
-    // Sites missing from orderedIds keep their relative order after the listed ones.
-    public async Task ReorderAsync(IReadOnlyList<int> orderedIds, CancellationToken cancellationToken = default)
-    {
-        await using KantelaDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        List<Site> sites = await db.Sites
-            .OrderBy(s => s.SortOrder)
-            .ThenBy(s => s.Id)
-            .ToListAsync(cancellationToken);
-
-        Dictionary<int, int> positions = orderedIds
-            .Select((id, index) => (id, index))
-            .ToDictionary(x => x.id, x => x.index);
-        List<Site> reordered = sites
-            .OrderBy(s => positions.TryGetValue(s.Id, out int position) ? position : int.MaxValue)
-            .ToList();
-
-        for (int i = 0; i < reordered.Count; i++)
-        {
-            reordered[i].SortOrder = i;
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
     }
 
     private static SiteInput Normalize(SiteInput input)

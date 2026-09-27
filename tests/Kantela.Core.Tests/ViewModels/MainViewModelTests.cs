@@ -1,3 +1,4 @@
+using Kantela.Core.Models;
 using Kantela.Core.Services;
 using Kantela.Core.Services.Transfer;
 using Kantela.Core.ViewModels;
@@ -16,6 +17,7 @@ public sealed class MainViewModelTests
     private FakeBrowserLauncher _browser = null!;
     private FakeFilePicker _filePicker = null!;
     private FakeDialogService _dialogs = null!;
+    private BookmarkTransferService _transferService = null!;
     private MainViewModel _viewModel = null!;
 
     [TestInitialize]
@@ -27,13 +29,12 @@ public sealed class MainViewModelTests
         _browser = new FakeBrowserLauncher();
         _filePicker = new FakeFilePicker();
         _dialogs = new FakeDialogService();
-        BookmarkTransferService transferService = new(
+        _transferService = new(
             _database.Factory,
             new BackupService(_database.Factory, _directory.Path, TimeProvider.System, NullLogger<BackupService>.Instance),
             TimeProvider.System,
             NullLogger<BookmarkTransferService>.Instance);
-        _viewModel = new MainViewModel(
-            _service, transferService, _browser, _filePicker, _dialogs, NullLogger<MainViewModel>.Instance);
+        _viewModel = CreateViewModel();
     }
 
     [TestCleanup]
@@ -140,16 +141,80 @@ public sealed class MainViewModelTests
     }
 
     [TestMethod]
-    public async Task SaveOrderAsync_PersistsCollectionOrder()
+    public async Task LoadAsync_SortsByRegistrationOrderByDefault()
     {
-        await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
-        await _service.AddAsync(new SiteInput("B", "https://b.invalid/", null));
+        await AddSitesAsync();
+
         await _viewModel.LoadAsync();
 
-        _viewModel.Sites.Move(1, 0);
-        await _viewModel.SaveOrderAsync();
+        Assert.AreEqual(new SiteSort(SiteSortColumn.Added, Descending: false), _viewModel.Sort);
+        CollectionAssert.AreEqual(new[] { "b", "C", "a" }, Titles());
+    }
 
-        CollectionAssert.AreEqual(new[] { "B", "A" }, (await _service.GetAllAsync()).Select(s => s.Title).ToArray());
+    [TestMethod]
+    [DataRow(SiteSortColumn.Title, false, new[] { "a", "b", "C" })]
+    [DataRow(SiteSortColumn.Previewed, true, new[] { "C", "b", "a" })]
+    [DataRow(SiteSortColumn.Visited, true, new[] { "a", "b", "C" })]
+    public async Task SortBy_NewColumnStartsFromItsDefaultDirection(
+        SiteSortColumn column, bool expectedDescending, string[] expected)
+    {
+        await AddSitesAsync();
+        await _viewModel.LoadAsync();
+
+        _viewModel.SortBy(column);
+
+        Assert.AreEqual(new SiteSort(column, expectedDescending), _viewModel.Sort);
+        CollectionAssert.AreEqual(expected, Titles());
+    }
+
+    [TestMethod]
+    [DataRow(SiteSortColumn.Added, new[] { "a", "C", "b" })]
+    [DataRow(SiteSortColumn.Visited, new[] { "b", "a", "C" })]
+    public async Task SortBy_SameColumnReversesDirectionAndKeepsMissingDatesLast(SiteSortColumn column, string[] expected)
+    {
+        await AddSitesAsync();
+        await _viewModel.LoadAsync();
+        if (_viewModel.Sort.Column != column)
+        {
+            _viewModel.SortBy(column);
+        }
+
+        bool descending = _viewModel.Sort.Descending;
+        _viewModel.SortBy(column);
+
+        Assert.AreEqual(new SiteSort(column, !descending), _viewModel.Sort);
+        CollectionAssert.AreEqual(expected, Titles());
+    }
+
+    [TestMethod]
+    public async Task Numbers_FollowRegistrationOrderAcrossSortingAddingAndDeleting()
+    {
+        await AddSitesAsync();
+        await _viewModel.LoadAsync();
+
+        _viewModel.SortBy(SiteSortColumn.Title);
+        CollectionAssert.AreEqual(new[] { 3, 1, 2 }, Numbers());
+
+        await _viewModel.DeleteCommand.ExecuteAsync(_viewModel.Sites.Single(s => s.Title == "b"));
+        CollectionAssert.AreEqual(new[] { 2, 1 }, Numbers());
+
+        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "d", "https://d.invalid/"));
+        await _viewModel.AddCommand.ExecuteAsync(null);
+        CollectionAssert.AreEqual(new[] { 2, 1, 3 }, Numbers());
+    }
+
+    [TestMethod]
+    public async Task SortBy_IsRestoredByNextInstance()
+    {
+        await AddSitesAsync();
+        _viewModel.SortBy(SiteSortColumn.Title);
+        _viewModel.SortBy(SiteSortColumn.Title);
+
+        _viewModel = CreateViewModel();
+        await _viewModel.LoadAsync();
+
+        Assert.AreEqual(new SiteSort(SiteSortColumn.Title, Descending: true), _viewModel.Sort);
+        CollectionAssert.AreEqual(new[] { "C", "b", "a" }, Titles());
     }
 
     [TestMethod]
@@ -186,6 +251,39 @@ public sealed class MainViewModelTests
         Assert.IsEmpty(_dialogs.Messages);
         Assert.IsEmpty(_dialogs.Errors);
     }
+
+    private MainViewModel CreateViewModel() => new(
+        _service,
+        _transferService,
+        new SettingsService(Path.Combine(_directory.Path, "settings.json"), NullLogger<SettingsService>.Instance),
+        _browser,
+        _filePicker,
+        _dialogs,
+        NullLogger<MainViewModel>.Instance);
+
+    // Registered in the order b, C, a. Visited: a (newest), b, C (never). Previewed: C (newest), b, a (never).
+    private async Task AddSitesAsync()
+    {
+        int b = (await _service.AddAsync(new SiteInput("b", "https://b.invalid/", null))).Id;
+        int c = (await _service.AddAsync(new SiteInput("C", "https://c.invalid/", null))).Id;
+        int a = (await _service.AddAsync(new SiteInput("a", "https://a.invalid/", null))).Id;
+        await MarkAsync(b, a, visited: true);
+        await MarkAsync(b, c, visited: false);
+    }
+
+    // Marks the first site, then the second one a day later.
+    private async Task MarkAsync(int older, int newer, bool visited)
+    {
+        foreach ((int id, int days) in new[] { (older, 1), (newer, 2) })
+        {
+            SiteService service = new(_database.Factory, new FixedTimeProvider(s_now.AddDays(days)), NullLogger<SiteService>.Instance);
+            _ = visited ? await service.MarkVisitedAsync(id) : await service.MarkPreviewedAsync(id);
+        }
+    }
+
+    private string[] Titles() => _viewModel.Sites.Select(s => s.Title).ToArray();
+
+    private int[] Numbers() => _viewModel.Sites.Select(s => s.Number).ToArray();
 
     private async Task<SiteItemViewModel> AddAndLoadAsync()
     {

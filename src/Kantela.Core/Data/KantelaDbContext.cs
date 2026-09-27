@@ -18,7 +18,6 @@ public class KantelaDbContext(DbContextOptions<KantelaDbContext> options) : DbCo
         modelBuilder.Entity<Site>(entity =>
         {
             entity.HasIndex(s => s.Url).IsUnique();
-            entity.HasIndex(s => s.SortOrder);
         });
     }
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Kantela.Core.Models;
 
@@ -22,6 +23,10 @@ public sealed partial class SiteItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(LastPreviewedText))]
     private DateTime? _lastPreviewedAt;
 
+    // 1-based position in registration (Id) order among the listed sites. Maintained by MainViewModel.
+    [ObservableProperty]
+    private int _number;
+
     public SiteItemViewModel(Site site)
     {
         Id = site.Id;
@@ -34,13 +39,9 @@ public sealed partial class SiteItemViewModel : ObservableObject
 
     public int Id { get; }
 
-    public string LastVisitedText => LastVisitedAt is DateTime visitedAt
-        ? $"Visited {visitedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
-        : "Not visited";
+    public string LastVisitedText => FormatDate(LastVisitedAt);
 
-    public string LastPreviewedText => LastPreviewedAt is DateTime previewedAt
-        ? $"Previewed {previewedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
-        : "Not previewed";
+    public string LastPreviewedText => FormatDate(LastPreviewedAt);
 
     public void Apply(Site site)
     {
@@ -50,4 +51,7 @@ public sealed partial class SiteItemViewModel : ObservableObject
         LastVisitedAt = site.LastVisitedAt;
         LastPreviewedAt = site.LastPreviewedAt;
     }
+
+    private static string FormatDate(DateTime? value) =>
+        value?.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "-";
 }

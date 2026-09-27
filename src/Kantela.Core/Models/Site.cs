@@ -10,8 +10,6 @@ public class Site
 
     public string? FeedUrl { get; set; }
 
-    public int SortOrder { get; set; }
-
     public DateTime CreatedAt { get; set; }
 
     public DateTime? LastVisitedAt { get; set; }

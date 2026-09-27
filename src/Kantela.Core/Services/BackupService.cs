@@ -22,7 +22,7 @@ public sealed class BackupService(
         lock (_lock)
         {
             using KantelaDbContext db = dbContextFactory.CreateDbContext();
-            List<Site> sites = db.Sites.AsNoTracking().OrderBy(s => s.SortOrder).ThenBy(s => s.Id).ToList();
+            List<Site> sites = db.Sites.AsNoTracking().OrderBy(s => s.Id).ToList();
             if (sites.Count == 0)
             {
                 logger.LogInformation("Skipped backup because there are no sites");

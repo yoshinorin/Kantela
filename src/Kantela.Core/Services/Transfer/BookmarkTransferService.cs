@@ -20,8 +20,7 @@ public sealed class BookmarkTransferService(
         {
             sites = await db.Sites
                 .AsNoTracking()
-                .OrderBy(s => s.SortOrder)
-                .ThenBy(s => s.Id)
+                .OrderBy(s => s.Id)
                 .ToListAsync(cancellationToken);
         }
 
@@ -73,7 +72,6 @@ public sealed class BookmarkTransferService(
         }
 
         HashSet<string> knownUrls = new(await db.Sites.Select(s => s.Url).ToListAsync(cancellationToken), StringComparer.Ordinal);
-        int nextSortOrder = (await db.Sites.MaxAsync(s => (int?)s.SortOrder, cancellationToken) ?? -1) + 1;
         int added = 0;
         int skippedDuplicates = 0;
         int skippedInvalid = 0;
@@ -108,7 +106,6 @@ public sealed class BookmarkTransferService(
                 Title = title.Length == 0 ? url : title,
                 Url = url,
                 FeedUrl = feedUrl,
-                SortOrder = nextSortOrder++,
                 CreatedAt = imported.CreatedAt ?? now,
                 LastVisitedAt = imported.LastVisitedAt,
                 LastPreviewedAt = imported.LastPreviewedAt,

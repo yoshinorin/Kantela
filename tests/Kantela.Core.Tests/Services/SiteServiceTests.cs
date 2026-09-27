@@ -34,8 +34,8 @@ public sealed class SiteServiceTests
         Assert.AreEqual("Second", site.Title);
         Assert.AreEqual("https://b.invalid/", site.Url);
         Assert.IsNull(site.FeedUrl);
-        Assert.AreEqual(1, site.SortOrder);
         Assert.AreEqual(s_now.UtcDateTime, site.CreatedAt);
+        CollectionAssert.AreEqual(new[] { "First", "Second" }, (await _service.GetAllAsync()).Select(s => s.Title).ToArray());
     }
 
     [TestMethod]
@@ -115,19 +115,5 @@ public sealed class SiteServiceTests
         Site stored = (await _service.GetAllAsync()).Single();
         Assert.AreEqual(previewedAt, stored.LastPreviewedAt);
         Assert.IsNull(stored.LastVisitedAt);
-    }
-
-    [TestMethod]
-    public async Task ReorderAsync_AppliesOrderAndKeepsUnlistedSitesAtEnd()
-    {
-        Site a = await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
-        Site b = await _service.AddAsync(new SiteInput("B", "https://b.invalid/", null));
-        Site c = await _service.AddAsync(new SiteInput("C", "https://c.invalid/", null));
-
-        await _service.ReorderAsync([c.Id, a.Id]);
-
-        IReadOnlyList<Site> sites = await _service.GetAllAsync();
-        CollectionAssert.AreEqual(new[] { "C", "A", "B" }, sites.Select(s => s.Title).ToArray());
-        CollectionAssert.AreEqual(new[] { 0, 1, 2 }, sites.Select(s => s.SortOrder).ToArray());
     }
 }

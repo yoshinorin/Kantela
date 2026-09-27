@@ -15,8 +15,8 @@ public sealed class JsonBookmarkFormatTests
         DateTime previewedAt = new(2026, 3, 1, 8, 0, 0, DateTimeKind.Utc);
         List<Site> sites =
         [
-            new() { Title = "B", Url = "https://b.invalid/", SortOrder = 1, CreatedAt = createdAt },
-            new() { Title = "A", Url = "https://a.invalid/", FeedUrl = "https://a.invalid/feed", SortOrder = 0, CreatedAt = createdAt, LastVisitedAt = visitedAt, LastPreviewedAt = previewedAt },
+            new() { Title = "B", Url = "https://b.invalid/", CreatedAt = createdAt },
+            new() { Title = "A", Url = "https://a.invalid/", FeedUrl = "https://a.invalid/feed", CreatedAt = createdAt, LastVisitedAt = visitedAt, LastPreviewedAt = previewedAt },
         ];
         using MemoryStream stream = new();
 
@@ -27,28 +27,34 @@ public sealed class JsonBookmarkFormatTests
         CollectionAssert.AreEqual(
             new[]
             {
-                new ImportedSite("A", "https://a.invalid/", "https://a.invalid/feed", createdAt, visitedAt, previewedAt),
                 new ImportedSite("B", "https://b.invalid/", null, createdAt, null),
+                new ImportedSite("A", "https://a.invalid/", "https://a.invalid/feed", createdAt, visitedAt, previewedAt),
             },
             imported.ToArray());
-        Assert.AreEqual(DateTimeKind.Utc, imported[0].LastVisitedAt!.Value.Kind);
+        Assert.AreEqual(DateTimeKind.Utc, imported[1].LastVisitedAt!.Value.Kind);
     }
 
     [TestMethod]
-    public void Read_AcceptsDocumentsWithoutLastPreviewedAt()
+    public void Read_AcceptsOlderDocumentsAndKeepsFileOrder()
     {
-        string json = """{ "version": 1, "exportedAt": "2026-01-01T00:00:00Z", "sites": [ { "title": "A", "url": "https://a.invalid/", "feedUrl": null, "sortOrder": 0, "createdAt": "2026-01-01T00:00:00Z", "lastVisitedAt": null } ] }""";
+        // Older exports have "sortOrder" and no "lastPreviewedAt".
+        string json = """
+            { "version": 1, "exportedAt": "2026-01-01T00:00:00Z", "sites": [
+              { "title": "B", "url": "https://b.invalid/", "feedUrl": null, "sortOrder": 1, "createdAt": "2026-01-01T00:00:00Z", "lastVisitedAt": null },
+              { "title": "A", "url": "https://a.invalid/", "feedUrl": null, "sortOrder": 0, "createdAt": "2026-01-01T00:00:00Z", "lastVisitedAt": null } ] }
+            """;
         using MemoryStream stream = new(Encoding.UTF8.GetBytes(json));
 
         IReadOnlyList<ImportedSite> imported = JsonBookmarkFormat.Read(stream);
 
-        Assert.IsNull(imported.Single().LastPreviewedAt);
+        CollectionAssert.AreEqual(new[] { "B", "A" }, imported.Select(s => s.Title).ToArray());
+        Assert.IsTrue(imported.All(s => s.LastPreviewedAt is null));
     }
 
     [TestMethod]
     [DataRow("not json")]
     [DataRow("""{ "version": 2, "exportedAt": "2026-01-01T00:00:00Z", "sites": [] }""")]
-    [DataRow("""{ "version": 1, "exportedAt": "2026-01-01T00:00:00Z", "sites": [ { "title": "A", "sortOrder": 0, "createdAt": "2026-01-01T00:00:00Z" } ] }""")]
+    [DataRow("""{ "version": 1, "exportedAt": "2026-01-01T00:00:00Z", "sites": [ { "title": "A", "createdAt": "2026-01-01T00:00:00Z" } ] }""")]
     public void Read_RejectsInvalidDocuments(string json)
     {
         using MemoryStream stream = new(Encoding.UTF8.GetBytes(json));

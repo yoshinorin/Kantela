@@ -60,7 +60,6 @@ public sealed class BookmarkTransferServiceTests
         CollectionAssert.AreEqual(
             new[] { "Existing", "B", "https://c.invalid/" },
             sites.Select(s => s.Title).ToArray());
-        CollectionAssert.AreEqual(new[] { 0, 1, 2 }, sites.Select(s => s.SortOrder).ToArray());
         Assert.AreEqual("https://b.invalid/", sites[1].Url);
         Assert.IsNull(sites[1].FeedUrl);
         Assert.AreEqual(visitedAt, sites[1].LastVisitedAt);

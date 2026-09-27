@@ -65,7 +65,6 @@ class Site
     string Title;
     string Url;                  // Unique
     string? FeedUrl;
-    int SortOrder;
     DateTime CreatedAt;          // UTC
     DateTime? LastVisitedAt;     // UTC. Opened in the browser
     DateTime? LastPreviewedAt;   // UTC. Preview loaded successfully (added by migration AddLastPreviewedAt)
@@ -74,7 +73,8 @@ class Site
 
 - All timestamps are stored as UTC `DateTime`. `DateTimeOffset` is avoided because the EF Core SQLite provider cannot translate ordering/comparison on it.
 - All sites are kept in a single **flat** list. There is no folder/category grouping.
-- `SortOrder` is a single global order, renumbered on every move. The number of sites is expected to be small.
+- There is no stored display order (the former `SortOrder` column was dropped by migration `RemoveSortOrder`). The list is sorted in memory (see "6. UI"); the number of sites is expected to be small.
+- Registration order is `Id` order.
 - URL comparison (uniqueness, import matching) uses ordinal comparison of the trimmed string.
 - Tags are out of scope for now. They can be added later as a many-to-many relation.
 - Update-check fields are added in Phase 4 via a migration (see section 9).
@@ -85,7 +85,7 @@ class Site
 
 - Opening a site launches the default browser (`Launcher.LaunchUriAsync`) and records `LastVisitedAt`.
 - Selecting a site shows a screenshot preview (see "Preview" below). A preview is not a visit.
-- Arbitrary ordering by drag and drop.
+- Sorting by registration order, name, last previewed date or last visited date.
 - Add / edit / delete sites.
 - OPML import/export.
 - JSON import/export (covers fields that OPML cannot hold).
@@ -105,7 +105,7 @@ class Site
 
 | Screen | Contents |
 |---|---|
-| Main | Left: a single `ListView` of all sites with reorder support. Each item shows title, URL, last visited date, last previewed date, and (Phase 4) an update indicator. Right: the preview of the selected site with an "Open in browser" button. The border between them can be dragged |
+| Main | Left: a single `ListView` of all sites with clickable column headers (#, Name, Previewed, Visited). Each row shows its registration number, title and URL, last previewed date, last visited date, and (Phase 4) an update indicator. Right: the preview of the selected site with an "Open in browser" button. The border between them can be dragged |
 | Command bar | Add, Import (JSON/OPML), Export (JSON/OPML); "Open data folder" in the overflow menu |
 | Site dialog | `ContentDialog` for Title, Url, FeedUrl |
 
@@ -115,7 +115,12 @@ Interactions:
 - Double click (or Enter) on a site: open it in the browser.
 - Click on the preview: open the selected site (its registered URL) in the browser.
 - Right click (context menu): Open in browser / Edit / Delete.
-- Drag and drop: reorder. The order is saved when the drag completes.
+- Click on a column header: sort by that column. Clicking the current column reverses the direction.
+  - #: by `Id` (registration order). The column shows 1, 2, 3, ... in `Id` order among the listed sites, not the `Id` itself, so there are no gaps; the numbers are reassigned when a site is deleted. `CreatedAt` is not shown.
+  - Name: by title (current culture, case-insensitive). Previewed / Visited: by the date; sites without the date always come last.
+  - A new column starts ascending for # and Name, and descending (newest first) for Previewed and Visited. Ties are broken by `Id`.
+  - The list is not re-sorted when a date changes, or when a site is added (it is appended) or edited. The new order is applied on the next header click or start.
+  - The chosen column and direction are saved to `settings.json`.
 
 ### Preview
 
@@ -142,7 +147,6 @@ Interactions:
       "title": "Example",
       "url": "https://example.com/",
       "feedUrl": "https://example.com/feed.xml",
-      "sortOrder": 0,
       "createdAt": "2026-01-01T00:00:00Z",
       "lastVisitedAt": null,
       "lastPreviewedAt": null
@@ -154,11 +158,12 @@ Interactions:
 - Database IDs are not exported.
 - `version` identifies the schema for future migrations of the format.
 - `lastPreviewedAt` is optional, so files exported before it was added can still be imported.
+- Sites are written in registration order and imported in file order. `sortOrder` in files exported by older versions is ignored.
 
 ### OPML (2.0)
 
 - Export
-  - Each site becomes a top-level `<outline type="rss" text title xmlUrl htmlUrl>`, in `SortOrder`.
+  - Each site becomes a top-level `<outline type="rss" text title xmlUrl htmlUrl>`, in registration order.
   - Sites without `FeedUrl` are **not exported** (OPML 2.0 requires `xmlUrl` for `type="rss"`). A warning is logged for each skipped site.
 - Import
   - `htmlUrl` becomes `Url` and `xmlUrl` becomes `FeedUrl`.
@@ -207,6 +212,7 @@ Each import runs in a single transaction.
   - `backups\`
   - `logs\`
   - `WebView2\` (WebView2 user data for previews; deleted on each start)
+  - `settings.json` (sort column and direction; defaults are used when it is missing or invalid)
 - The app is unpackaged, so this path is used as is for both Debug and Release builds.
 
 ## 11. Deployment
@@ -225,7 +231,7 @@ Each import runs in a single transaction.
 - `tests/Kantela.Core.Tests` (MSTest) references `Kantela.Core` only.
 - Uses Microsoft.Testing.Platform (configured in `global.json`). Run with `dotnet test --project tests/Kantela.Core.Tests/Kantela.Core.Tests.csproj`.
 - EF Core tests use SQLite in-memory (`DataSource=:memory:` with an open connection).
-- Targets: JSON/OPML import and export (including the skip/warning rules), import modes, backup retention, reordering logic, view models.
+- Targets: JSON/OPML import and export (including the skip/warning rules), import modes, backup retention, settings, sorting, view models.
 
 ## 14. Tooling
 
@@ -239,6 +245,6 @@ Each import runs in a single transaction.
 |---|---|
 | 0 | Restructure solution, upgrade to .NET 10 and latest packages, add Core/Tests projects, fix README |
 | 1 | Models, DbContext, initial migration, storage paths, logging setup |
-| 2 | Main UI: list, open in browser, `LastVisitedAt`, reorder, site CRUD |
+| 2 | Main UI: list, open in browser, `LastVisitedAt`, site CRUD |
 | 3 | JSON/OPML import/export, import modes, backup on exit |
 | 4 | Update check |

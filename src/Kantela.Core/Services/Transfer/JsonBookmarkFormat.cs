@@ -19,7 +19,7 @@ public static class JsonBookmarkFormat
         Document document = new(
             CurrentVersion,
             exportedAt,
-            sites.Select(s => new DocumentSite(s.Title, s.Url, s.FeedUrl, s.SortOrder, s.CreatedAt, s.LastVisitedAt, s.LastPreviewedAt)).ToList());
+            sites.Select(s => new DocumentSite(s.Title, s.Url, s.FeedUrl, s.CreatedAt, s.LastVisitedAt, s.LastPreviewedAt)).ToList());
         JsonSerializer.Serialize(stream, document, s_options);
     }
 
@@ -41,8 +41,8 @@ public static class JsonBookmarkFormat
             throw new InvalidDataException($"Unsupported JSON export version: {document.Version}.");
         }
 
+        // "sortOrder" in files exported by older versions is ignored; sites are imported in file order.
         return document.Sites
-            .OrderBy(s => s.SortOrder)
             .Select(s => new ImportedSite(s.Title, s.Url, s.FeedUrl, s.CreatedAt, s.LastVisitedAt, s.LastPreviewedAt))
             .ToList();
     }
@@ -53,7 +53,6 @@ public static class JsonBookmarkFormat
         string Title,
         string Url,
         string? FeedUrl,
-        int SortOrder,
         DateTime CreatedAt,
         DateTime? LastVisitedAt,
         DateTime? LastPreviewedAt = null);

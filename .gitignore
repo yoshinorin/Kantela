@@ -101,3 +101,8 @@ $RECYCLE.BIN/
 # Application specific
 appsettings.local.json
 *.log
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal

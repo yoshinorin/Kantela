@@ -67,7 +67,8 @@ class Site
     string? FeedUrl;
     int SortOrder;
     DateTime CreatedAt;          // UTC
-    DateTime? LastVisitedAt;     // UTC
+    DateTime? LastVisitedAt;     // UTC. Opened in the browser
+    DateTime? LastPreviewedAt;   // UTC. Preview loaded successfully (added by migration AddLastPreviewedAt)
 }
 ```
 
@@ -82,7 +83,8 @@ class Site
 
 ### MUST
 
-- Selecting a site opens it in the default browser (`Launcher.LaunchUriAsync`) and records `LastVisitedAt`.
+- Opening a site launches the default browser (`Launcher.LaunchUriAsync`) and records `LastVisitedAt`.
+- Selecting a site shows a screenshot preview (see "Preview" below). A preview is not a visit.
 - Arbitrary ordering by drag and drop.
 - Add / edit / delete sites.
 - OPML import/export.
@@ -103,15 +105,29 @@ class Site
 
 | Screen | Contents |
 |---|---|
-| Main | A single `ListView` of all sites with reorder support. Each item shows title, URL, last visited date, and (Phase 4) an update indicator |
+| Main | Left: a single `ListView` of all sites with reorder support. Each item shows title, URL, last visited date, last previewed date, and (Phase 4) an update indicator. Right: the preview of the selected site with an "Open in browser" button. The border between them can be dragged |
 | Command bar | Add, Import (JSON/OPML), Export (JSON/OPML); "Open data folder" in the overflow menu |
 | Site dialog | `ContentDialog` for Title, Url, FeedUrl |
 
 Interactions:
 
-- Click (or Enter) on a site: open it in the browser.
-- Right click (context menu): Open / Edit / Delete.
+- Click on a site: select it and show its preview.
+- Double click (or Enter) on a site: open it in the browser.
+- Click on the preview: open the selected site (its registered URL) in the browser.
+- Right click (context menu): Open in browser / Edit / Delete.
 - Drag and drop: reorder. The order is saved when the drag completes.
+
+### Preview
+
+- The preview is only for checking what a site looks like; browsing is left to the default browser.
+  - The header above the preview says so, and the cursor over the page is a hand.
+- `LastPreviewedAt` is recorded when the page finishes loading successfully. It does not affect `LastVisitedAt`.
+- A single WebView2 shows the page, covered by a transparent layer that blocks all input.
+  - Only mouse wheel input is forwarded, via the DevTools Protocol (`Input.dispatchMouseEvent`), so the page can be scrolled.
+  - Only the navigation started by Kantela (and its redirects) is allowed; page-initiated navigations are cancelled.
+  - Muted; context menus, DevTools, browser accelerator keys, script dialogs, downloads and new windows are disabled.
+- No browsing data is kept: the WebView2 runs in InPrivate mode, and its user data folder is deleted before the first use in each run.
+- Requires the WebView2 Runtime (preinstalled on Windows 11).
 
 ## 7. Import / Export
 
@@ -128,7 +144,8 @@ Interactions:
       "feedUrl": "https://example.com/feed.xml",
       "sortOrder": 0,
       "createdAt": "2026-01-01T00:00:00Z",
-      "lastVisitedAt": null
+      "lastVisitedAt": null,
+      "lastPreviewedAt": null
     }
   ]
 }
@@ -136,6 +153,7 @@ Interactions:
 
 - Database IDs are not exported.
 - `version` identifies the schema for future migrations of the format.
+- `lastPreviewedAt` is optional, so files exported before it was added can still be imported.
 
 ### OPML (2.0)
 
@@ -188,6 +206,7 @@ Each import runs in a single transaction.
   - `kantela.db`
   - `backups\`
   - `logs\`
+  - `WebView2\` (WebView2 user data for previews; deleted on each start)
 - The app is unpackaged, so this path is used as is for both Debug and Release builds.
 
 ## 11. Deployment

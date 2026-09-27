@@ -15,4 +15,6 @@ public class Site
     public DateTime CreatedAt { get; set; }
 
     public DateTime? LastVisitedAt { get; set; }
+
+    public DateTime? LastPreviewedAt { get; set; }
 }

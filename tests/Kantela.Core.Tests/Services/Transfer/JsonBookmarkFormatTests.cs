@@ -12,10 +12,11 @@ public sealed class JsonBookmarkFormatTests
     {
         DateTime createdAt = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         DateTime visitedAt = new(2026, 2, 1, 12, 30, 0, DateTimeKind.Utc);
+        DateTime previewedAt = new(2026, 3, 1, 8, 0, 0, DateTimeKind.Utc);
         List<Site> sites =
         [
             new() { Title = "B", Url = "https://b.example/", SortOrder = 1, CreatedAt = createdAt },
-            new() { Title = "A", Url = "https://a.example/", FeedUrl = "https://a.example/feed", SortOrder = 0, CreatedAt = createdAt, LastVisitedAt = visitedAt },
+            new() { Title = "A", Url = "https://a.example/", FeedUrl = "https://a.example/feed", SortOrder = 0, CreatedAt = createdAt, LastVisitedAt = visitedAt, LastPreviewedAt = previewedAt },
         ];
         using MemoryStream stream = new();
 
@@ -26,11 +27,22 @@ public sealed class JsonBookmarkFormatTests
         CollectionAssert.AreEqual(
             new[]
             {
-                new ImportedSite("A", "https://a.example/", "https://a.example/feed", createdAt, visitedAt),
+                new ImportedSite("A", "https://a.example/", "https://a.example/feed", createdAt, visitedAt, previewedAt),
                 new ImportedSite("B", "https://b.example/", null, createdAt, null),
             },
             imported.ToArray());
         Assert.AreEqual(DateTimeKind.Utc, imported[0].LastVisitedAt!.Value.Kind);
+    }
+
+    [TestMethod]
+    public void Read_AcceptsDocumentsWithoutLastPreviewedAt()
+    {
+        string json = """{ "version": 1, "exportedAt": "2026-01-01T00:00:00Z", "sites": [ { "title": "A", "url": "https://a.example/", "feedUrl": null, "sortOrder": 0, "createdAt": "2026-01-01T00:00:00Z", "lastVisitedAt": null } ] }""";
+        using MemoryStream stream = new(Encoding.UTF8.GetBytes(json));
+
+        IReadOnlyList<ImportedSite> imported = JsonBookmarkFormat.Read(stream);
+
+        Assert.IsNull(imported.Single().LastPreviewedAt);
     }
 
     [TestMethod]

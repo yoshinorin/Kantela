@@ -104,6 +104,20 @@ public sealed class SiteServiceTests
     }
 
     [TestMethod]
+    public async Task MarkPreviewedAsync_StoresCurrentTimeWithoutChangingVisit()
+    {
+        Site site = await _service.AddAsync(new SiteInput("A", "https://a.example/", null));
+        _timeProvider.Now = s_now.AddDays(1);
+
+        DateTime previewedAt = await _service.MarkPreviewedAsync(site.Id);
+
+        Assert.AreEqual(s_now.AddDays(1).UtcDateTime, previewedAt);
+        Site stored = (await _service.GetAllAsync()).Single();
+        Assert.AreEqual(previewedAt, stored.LastPreviewedAt);
+        Assert.IsNull(stored.LastVisitedAt);
+    }
+
+    [TestMethod]
     public async Task ReorderAsync_AppliesOrderAndKeepsUnlistedSitesAtEnd()
     {
         Site a = await _service.AddAsync(new SiteInput("A", "https://a.example/", null));

@@ -111,6 +111,7 @@ public sealed class BookmarkTransferService(
                 SortOrder = nextSortOrder++,
                 CreatedAt = imported.CreatedAt ?? now,
                 LastVisitedAt = imported.LastVisitedAt,
+                LastPreviewedAt = imported.LastPreviewedAt,
             });
             added++;
         }

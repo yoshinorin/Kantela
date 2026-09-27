@@ -10,6 +10,8 @@ public sealed class AppPaths(string rootDirectory)
 
     public string Logs => Path.Combine(Root, "logs");
 
+    public string WebView => Path.Combine(Root, "WebView2");
+
     public static AppPaths CreateDefault() =>
         new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kantela"));
 

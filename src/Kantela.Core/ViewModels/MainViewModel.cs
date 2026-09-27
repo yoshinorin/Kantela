@@ -41,6 +41,10 @@ public sealed partial class MainViewModel(
     });
 
     [RelayCommand]
+    private Task RecordPreviewAsync(SiteItemViewModel site) => RunAsync(async () =>
+        site.LastPreviewedAt = await siteService.MarkPreviewedAsync(site.Id));
+
+    [RelayCommand]
     private Task AddAsync() => RunAsync(async () =>
     {
         SiteEditorViewModel editor = new();

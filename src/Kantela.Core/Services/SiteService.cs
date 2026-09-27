@@ -84,6 +84,16 @@ public sealed class SiteService(
         return visitedAt;
     }
 
+    public async Task<DateTime> MarkPreviewedAsync(int id, CancellationToken cancellationToken = default)
+    {
+        DateTime previewedAt = timeProvider.GetUtcNow().UtcDateTime;
+        await using KantelaDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await db.Sites
+            .Where(s => s.Id == id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.LastPreviewedAt, previewedAt), cancellationToken);
+        return previewedAt;
+    }
+
     // Sites missing from orderedIds keep their relative order after the listed ones.
     public async Task ReorderAsync(IReadOnlyList<int> orderedIds, CancellationToken cancellationToken = default)
     {

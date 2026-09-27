@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Kantela.Views.SitePreview"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid>
+        <WebView2 x:Name="PreviewView" IsTabStop="False" Visibility="Collapsed" />
+
+        <!-- Blocks all input to the page; only the mouse wheel is forwarded for scrolling. -->
+        <Border
+            Background="Transparent"
+            PointerWheelChanged="InputBlocker_PointerWheelChanged"
+            Tapped="InputBlocker_Tapped" />
+
+        <ProgressBar
+            x:Name="LoadingBar"
+            VerticalAlignment="Top"
+            IsIndeterminate="True"
+            Visibility="Collapsed" />
+
+        <TextBlock
+            x:Name="StatusText"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Text="Select a site to preview."
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+    </Grid>
+</UserControl>

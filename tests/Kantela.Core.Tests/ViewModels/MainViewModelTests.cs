@@ -79,6 +79,19 @@ public sealed class MainViewModelTests
     }
 
     [TestMethod]
+    public async Task RecordPreview_RecordsPreviewWithoutLaunchingBrowser()
+    {
+        SiteItemViewModel site = await AddAndLoadAsync();
+
+        await _viewModel.RecordPreviewCommand.ExecuteAsync(site);
+
+        Assert.IsEmpty(_browser.OpenedUris);
+        Assert.AreEqual(s_now.UtcDateTime, site.LastPreviewedAt);
+        Assert.IsNull(site.LastVisitedAt);
+        Assert.AreEqual(s_now.UtcDateTime, (await _service.GetAllAsync()).Single().LastPreviewedAt);
+    }
+
+    [TestMethod]
     public async Task Add_ReopensEditorOnDuplicateUrlUntilSaved()
     {
         await AddAndLoadAsync();

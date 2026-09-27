@@ -43,11 +43,12 @@ public sealed class BookmarkTransferServiceTests
     {
         await _siteService.AddAsync(new SiteInput("Existing", "https://a.example/", null));
         DateTime visitedAt = new(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        DateTime previewedAt = new(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
 
         ImportResult result = await _transferService.ImportAsync(
             [
                 new ImportedSite("Dup of existing", "https://a.example/", null),
-                new ImportedSite(" B ", " https://b.example/ ", "not a url", LastVisitedAt: visitedAt),
+                new ImportedSite(" B ", " https://b.example/ ", "not a url", LastVisitedAt: visitedAt, LastPreviewedAt: previewedAt),
                 new ImportedSite("Dup in file", "https://b.example/", null),
                 new ImportedSite("Invalid", "javascript:alert(1)", null),
                 new ImportedSite("", "https://c.example/", "https://c.example/feed"),
@@ -63,6 +64,7 @@ public sealed class BookmarkTransferServiceTests
         Assert.AreEqual("https://b.example/", sites[1].Url);
         Assert.IsNull(sites[1].FeedUrl);
         Assert.AreEqual(visitedAt, sites[1].LastVisitedAt);
+        Assert.AreEqual(previewedAt, sites[1].LastPreviewedAt);
         Assert.AreEqual(s_now.UtcDateTime, sites[1].CreatedAt);
         Assert.AreEqual("https://c.example/feed", sites[2].FeedUrl);
     }

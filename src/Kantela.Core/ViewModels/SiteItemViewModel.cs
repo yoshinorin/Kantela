@@ -18,6 +18,10 @@ public sealed partial class SiteItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(LastVisitedText))]
     private DateTime? _lastVisitedAt;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LastPreviewedText))]
+    private DateTime? _lastPreviewedAt;
+
     public SiteItemViewModel(Site site)
     {
         Id = site.Id;
@@ -25,6 +29,7 @@ public sealed partial class SiteItemViewModel : ObservableObject
         _url = site.Url;
         _feedUrl = site.FeedUrl;
         _lastVisitedAt = site.LastVisitedAt;
+        _lastPreviewedAt = site.LastPreviewedAt;
     }
 
     public int Id { get; }
@@ -33,11 +38,16 @@ public sealed partial class SiteItemViewModel : ObservableObject
         ? $"Visited {visitedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
         : "Not visited";
 
+    public string LastPreviewedText => LastPreviewedAt is DateTime previewedAt
+        ? $"Previewed {previewedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
+        : "Not previewed";
+
     public void Apply(Site site)
     {
         Title = site.Title;
         Url = site.Url;
         FeedUrl = site.FeedUrl;
         LastVisitedAt = site.LastVisitedAt;
+        LastPreviewedAt = site.LastPreviewedAt;
     }
 }

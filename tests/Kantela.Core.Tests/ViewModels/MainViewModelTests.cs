@@ -46,8 +46,8 @@ public sealed class MainViewModelTests
     [TestMethod]
     public async Task LoadAsync_LoadsSitesInOrder()
     {
-        await _service.AddAsync(new SiteInput("A", "https://a.example/", null));
-        await _service.AddAsync(new SiteInput("B", "https://b.example/", null));
+        await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
+        await _service.AddAsync(new SiteInput("B", "https://b.invalid/", null));
 
         await _viewModel.LoadAsync();
 
@@ -61,7 +61,7 @@ public sealed class MainViewModelTests
 
         await _viewModel.OpenCommand.ExecuteAsync(site);
 
-        Assert.AreEqual(new Uri("https://a.example/"), _browser.OpenedUris.Single());
+        Assert.AreEqual(new Uri("https://a.invalid/"), _browser.OpenedUris.Single());
         Assert.AreEqual(s_now.UtcDateTime, site.LastVisitedAt);
         Assert.AreEqual(s_now.UtcDateTime, (await _service.GetAllAsync()).Single().LastVisitedAt);
     }
@@ -95,8 +95,8 @@ public sealed class MainViewModelTests
     public async Task Add_ReopensEditorOnDuplicateUrlUntilSaved()
     {
         await AddAndLoadAsync();
-        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "Dup", "https://a.example/"));
-        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "New", "https://b.example/"));
+        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "Dup", "https://a.invalid/"));
+        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "New", "https://b.invalid/"));
 
         await _viewModel.AddCommand.ExecuteAsync(null);
 
@@ -117,7 +117,7 @@ public sealed class MainViewModelTests
     public async Task Edit_UpdatesItem()
     {
         SiteItemViewModel site = await AddAndLoadAsync();
-        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "Renamed", "https://a.example/"));
+        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "Renamed", "https://a.invalid/"));
 
         await _viewModel.EditCommand.ExecuteAsync(site);
 
@@ -142,8 +142,8 @@ public sealed class MainViewModelTests
     [TestMethod]
     public async Task SaveOrderAsync_PersistsCollectionOrder()
     {
-        await _service.AddAsync(new SiteInput("A", "https://a.example/", null));
-        await _service.AddAsync(new SiteInput("B", "https://b.example/", null));
+        await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
+        await _service.AddAsync(new SiteInput("B", "https://b.invalid/", null));
         await _viewModel.LoadAsync();
 
         _viewModel.Sites.Move(1, 0);
@@ -155,7 +155,7 @@ public sealed class MainViewModelTests
     [TestMethod]
     public async Task ExportThenImport_ReloadsSitesAndReportsResults()
     {
-        await _service.AddAsync(new SiteInput("A", "https://a.example/", null));
+        await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
         _filePicker.Path = Path.Combine(_directory.Path, "export.opml");
 
         await _viewModel.ExportOpmlCommand.ExecuteAsync(null);
@@ -189,7 +189,7 @@ public sealed class MainViewModelTests
 
     private async Task<SiteItemViewModel> AddAndLoadAsync()
     {
-        await _service.AddAsync(new SiteInput("A", "https://a.example/", null));
+        await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
         await _viewModel.LoadAsync();
         return _viewModel.Sites.Single();
     }

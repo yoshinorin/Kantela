@@ -19,7 +19,7 @@ public sealed class KantelaDbContextTests
             db.Sites.Add(new Site
             {
                 Title = "Example",
-                Url = "https://example.com/",
+                Url = "https://example.invalid/",
                 CreatedAt = createdAt,
                 LastVisitedAt = lastVisitedAt,
             });
@@ -41,8 +41,8 @@ public sealed class KantelaDbContextTests
     {
         using TestDatabase database = new();
         using KantelaDbContext db = database.Factory.CreateDbContext();
-        db.Sites.Add(new Site { Title = "A", Url = "https://example.com/" });
-        db.Sites.Add(new Site { Title = "B", Url = "https://example.com/" });
+        db.Sites.Add(new Site { Title = "A", Url = "https://example.invalid/" });
+        db.Sites.Add(new Site { Title = "B", Url = "https://example.invalid/" });
 
         Assert.ThrowsExactly<DbUpdateException>(() => db.SaveChanges());
     }

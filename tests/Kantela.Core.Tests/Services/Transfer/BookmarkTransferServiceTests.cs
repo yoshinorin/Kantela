@@ -41,48 +41,48 @@ public sealed class BookmarkTransferServiceTests
     [TestMethod]
     public async Task Merge_AppendsNewSitesAndSkipsDuplicatesAndInvalidUrls()
     {
-        await _siteService.AddAsync(new SiteInput("Existing", "https://a.example/", null));
+        await _siteService.AddAsync(new SiteInput("Existing", "https://a.invalid/", null));
         DateTime visitedAt = new(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
         DateTime previewedAt = new(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
 
         ImportResult result = await _transferService.ImportAsync(
             [
-                new ImportedSite("Dup of existing", "https://a.example/", null),
-                new ImportedSite(" B ", " https://b.example/ ", "not a url", LastVisitedAt: visitedAt, LastPreviewedAt: previewedAt),
-                new ImportedSite("Dup in file", "https://b.example/", null),
+                new ImportedSite("Dup of existing", "https://a.invalid/", null),
+                new ImportedSite(" B ", " https://b.invalid/ ", "not a url", LastVisitedAt: visitedAt, LastPreviewedAt: previewedAt),
+                new ImportedSite("Dup in file", "https://b.invalid/", null),
                 new ImportedSite("Invalid", "javascript:alert(1)", null),
-                new ImportedSite("", "https://c.example/", "https://c.example/feed"),
+                new ImportedSite("", "https://c.invalid/", "https://c.invalid/feed"),
             ],
             ImportMode.Merge);
 
         Assert.AreEqual(new ImportResult(Added: 2, SkippedDuplicates: 2, SkippedInvalid: 1), result);
         IReadOnlyList<Site> sites = await _siteService.GetAllAsync();
         CollectionAssert.AreEqual(
-            new[] { "Existing", "B", "https://c.example/" },
+            new[] { "Existing", "B", "https://c.invalid/" },
             sites.Select(s => s.Title).ToArray());
         CollectionAssert.AreEqual(new[] { 0, 1, 2 }, sites.Select(s => s.SortOrder).ToArray());
-        Assert.AreEqual("https://b.example/", sites[1].Url);
+        Assert.AreEqual("https://b.invalid/", sites[1].Url);
         Assert.IsNull(sites[1].FeedUrl);
         Assert.AreEqual(visitedAt, sites[1].LastVisitedAt);
         Assert.AreEqual(previewedAt, sites[1].LastPreviewedAt);
         Assert.AreEqual(s_now.UtcDateTime, sites[1].CreatedAt);
-        Assert.AreEqual("https://c.example/feed", sites[2].FeedUrl);
+        Assert.AreEqual("https://c.invalid/feed", sites[2].FeedUrl);
     }
 
     [TestMethod]
     public async Task Replace_DeletesExistingSitesAfterBackingThemUp()
     {
-        await _siteService.AddAsync(new SiteInput("Old", "https://old.example/", null));
+        await _siteService.AddAsync(new SiteInput("Old", "https://old.invalid/", null));
 
         ImportResult result = await _transferService.ImportAsync(
-            [new ImportedSite("New", "https://new.example/", null)],
+            [new ImportedSite("New", "https://new.invalid/", null)],
             ImportMode.Replace);
 
         Assert.AreEqual(new ImportResult(1, 0, 0), result);
         Assert.AreEqual("New", (await _siteService.GetAllAsync()).Single().Title);
         string backup = Directory.GetFiles(BackupDirectory).Single();
         await using FileStream stream = File.OpenRead(backup);
-        Assert.AreEqual("https://old.example/", JsonBookmarkFormat.Read(stream).Single().Url);
+        Assert.AreEqual("https://old.invalid/", JsonBookmarkFormat.Read(stream).Single().Url);
     }
 
     [TestMethod]
@@ -90,12 +90,12 @@ public sealed class BookmarkTransferServiceTests
     [DataRow(BookmarkFormat.Opml, 1, 1)]
     public async Task ExportThenReplaceImport_RestoresExportedSites(BookmarkFormat format, int expectedExported, int expectedSkipped)
     {
-        await _siteService.AddAsync(new SiteInput("A", "https://a.example/", "https://a.example/feed"));
-        await _siteService.AddAsync(new SiteInput("B", "https://b.example/", null));
+        await _siteService.AddAsync(new SiteInput("A", "https://a.invalid/", "https://a.invalid/feed"));
+        await _siteService.AddAsync(new SiteInput("B", "https://b.invalid/", null));
         string path = Path.Combine(_directory.Path, "export" + format.DefaultExtension());
 
         ExportResult exportResult = await _transferService.ExportAsync(format, path);
-        await _siteService.AddAsync(new SiteInput("C", "https://c.example/", null));
+        await _siteService.AddAsync(new SiteInput("C", "https://c.invalid/", null));
         await _transferService.ImportAsync(format, path, ImportMode.Replace);
 
         Assert.AreEqual(new ExportResult(expectedExported, expectedSkipped), exportResult);

@@ -38,7 +38,7 @@ public sealed class BackupServiceTests
 
         Assert.IsNotNull(path);
         await using FileStream stream = File.OpenRead(path);
-        Assert.AreEqual("https://a.example/", JsonBookmarkFormat.Read(stream).Single().Url);
+        Assert.AreEqual("https://a.invalid/", JsonBookmarkFormat.Read(stream).Single().Url);
         Assert.IsEmpty(Directory.GetFiles(_directory.Path, "*.tmp"));
     }
 
@@ -67,5 +67,5 @@ public sealed class BackupServiceTests
 
     private Task AddSiteAsync() =>
         new SiteService(_database.Factory, _timeProvider, NullLogger<SiteService>.Instance)
-            .AddAsync(new SiteInput("A", "https://a.example/", null));
+            .AddAsync(new SiteInput("A", "https://a.invalid/", null));
 }

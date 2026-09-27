@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Kantela.Core.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -15,6 +16,7 @@ public sealed partial class MainWindow : Window
         ViewModel = viewModel;
         InitializeComponent();
         AppWindow.Resize(new SizeInt32(640, 800));
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Kantela.ico"));
     }
 
     public MainViewModel ViewModel { get; }

@@ -1,4 +1,4 @@
-# Kantela
+# <img src="docs/logo/kantela.svg" alt="Kantela logo" width="32" height="32"> Kantela
 
 A Windows application built with WinUI 3 and the Windows App SDK.
 

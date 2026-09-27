@@ -33,12 +33,55 @@ public sealed class PageParserTests
     }
 
     [TestMethod]
-    public async Task ParseHtmlAsync_ReturnsNullTitleWhenMissingOrBlank()
+    public async Task ParseHtmlAsync_ReturnsNullTitleWhenMissingOrBlankAndFallsBackToFaviconIco()
     {
-        PageMetadata metadata = await PageParser.ParseHtmlAsync(Html("<html><head><title> </title></head></html>"));
+        PageMetadata metadata = await PageParser.ParseHtmlAsync(Html("<html><head><title> </title></head></html>", "https://a.invalid/blog/post"));
 
         Assert.IsNull(metadata.Title);
         Assert.IsEmpty(metadata.FeedUrls);
+        CollectionAssert.AreEqual(new[] { "https://a.invalid/favicon.ico" }, metadata.IconUrls.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ParseHtmlAsync_RanksIconsAndLimitsDeclaredOnes()
+    {
+        WebPage page = Html("""
+            <link rel="apple-touch-icon" sizes="180x180" href="/apple.png">
+            <link rel="icon" sizes="16x16" href="/16.png">
+            <link rel="shortcut icon" href="/favicon.ico">
+            <link rel="icon" sizes="32x32" href="/32.png">
+            <link rel="icon" type="image/svg+xml" href="/icon.svg">
+            <link rel="mask-icon" href="/mask.svg">
+            <link rel="icon" href="data:image/png;base64,AAAA">
+            """);
+
+        PageMetadata metadata = await PageParser.ParseHtmlAsync(page);
+
+        CollectionAssert.AreEqual(
+            new[] { "https://a.invalid/icon.svg", "https://a.invalid/32.png", "https://a.invalid/favicon.ico" },
+            metadata.IconUrls.ToArray());
+    }
+
+    [TestMethod]
+    [DataRow(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A }, "image/png")]
+    [DataRow(new byte[] { 0, 0, 1, 0, 1, 0 }, "image/x-icon")]
+    [DataRow(new byte[] { 0x47, 0x49, 0x46, 0x38, 0x39, 0x61 }, "image/gif")]
+    [DataRow(new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 }, "image/jpeg")]
+    [DataRow(new byte[] { 0x42, 0x4D, 0, 0 }, "image/bmp")]
+    [DataRow(new byte[] { 0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50 }, "image/webp")]
+    [DataRow(new byte[] { 0x3C, 0x68, 0x74, 0x6D, 0x6C, 0x3E }, null)]
+    [DataRow(new byte[] { }, null)]
+    public void ImageContentType_DetectsRasterFormats(byte[] data, string? expected)
+    {
+        Assert.AreEqual(expected, PageParser.ImageContentType(data));
+    }
+
+    [TestMethod]
+    [DataRow("""<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"></svg>""", "image/svg+xml")]
+    [DataRow("""<!DOCTYPE html><html><body><svg></svg></body></html>""", null)]
+    public void ImageContentType_DetectsSvgButNotHtml(string content, string? expected)
+    {
+        Assert.AreEqual(expected, PageParser.ImageContentType(Encoding.UTF8.GetBytes(content)));
     }
 
     [TestMethod]

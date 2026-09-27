@@ -10,6 +10,7 @@ namespace Kantela.Core.Tests.ViewModels;
 public sealed class MainViewModelTests
 {
     private static readonly DateTimeOffset s_now = new(2026, 9, 27, 0, 0, 0, TimeSpan.Zero);
+    private static readonly byte[] s_ico = [0, 0, 1, 0, 1, 0];
 
     private TestDatabase _database = null!;
     private TestDirectory _directory = null!;
@@ -105,7 +106,7 @@ public sealed class MainViewModelTests
         await _viewModel.AddCommand.ExecuteAsync(null);
 
         Assert.Contains("already registered", _dialogs.EditorErrors.Single());
-        CollectionAssert.AreEqual(new[] { new Uri("https://b.invalid/") }, _web.Requests);
+        Assert.IsFalse(_web.Requests.Any(uri => uri.Host == "a.invalid"));
         CollectionAssert.AreEqual(new[] { "A", "New" }, Titles());
     }
 
@@ -152,17 +153,48 @@ public sealed class MainViewModelTests
     }
 
     [TestMethod]
-    public async Task Edit_UpdatesItem()
+    public async Task Edit_UpdatesItemEvenWhileSiteIsUnreachable()
     {
         SiteItemViewModel site = await AddAndLoadAsync();
         _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "Renamed", "https://a.invalid/"));
 
         await _viewModel.EditCommand.ExecuteAsync(site);
 
-        // The URL did not change and the title is given, so nothing is fetched.
-        Assert.IsEmpty(_web.Requests);
         Assert.AreEqual("Renamed", site.Title);
         Assert.AreEqual("Renamed", (await _service.GetAllAsync()).Single().Title);
+    }
+
+    [TestMethod]
+    public async Task Add_SavesIconAndLoadRestoresIt()
+    {
+        _web.AddHtml("https://a.invalid/", "<title>A</title>");
+        _web.AddBytes("https://a.invalid/favicon.ico", s_ico);
+        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "A", "https://a.invalid/"));
+
+        await _viewModel.AddCommand.ExecuteAsync(null);
+        SiteItemViewModel added = _viewModel.Sites.Single();
+        await _viewModel.LoadAsync();
+
+        CollectionAssert.AreEqual(s_ico, added.Icon!.Data);
+        Assert.AreEqual("image/x-icon", _viewModel.Sites.Single().Icon!.ContentType);
+    }
+
+    [TestMethod]
+    [DataRow("https://a.invalid/", true)]
+    [DataRow("https://b.invalid/", false)]
+    public async Task Edit_WithoutNewIconKeepsSavedIconOnlyWhileUrlIsUnchanged(string newUrl, bool kept)
+    {
+        SiteItemViewModel site = await AddAndLoadAsync();
+        await _service.SetIconAsync(site.Id, new FaviconImage("image/x-icon", s_ico));
+        await _viewModel.LoadAsync();
+        site = _viewModel.Sites.Single();
+        _web.AddHtml("https://b.invalid/", "<title>B</title>");
+        _dialogs.EditorResponses.Enqueue(editor => Fill(editor, "A", newUrl));
+
+        await _viewModel.EditCommand.ExecuteAsync(site);
+
+        Assert.AreEqual(kept, site.Icon is not null);
+        Assert.AreEqual(kept, (await _service.GetIconsAsync()).ContainsKey(site.Id));
     }
 
     [TestMethod]

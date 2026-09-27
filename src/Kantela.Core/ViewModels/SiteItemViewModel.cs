@@ -28,6 +28,9 @@ public sealed partial class SiteItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(LastPreviewedText))]
     private DateTime? _lastPreviewedAt;
 
+    [ObservableProperty]
+    private FaviconImage? _icon;
+
     // 1-based position in registration (Id) order among the listed sites. Maintained by MainViewModel.
     [ObservableProperty]
     private int _number;

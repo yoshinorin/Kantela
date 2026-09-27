@@ -114,6 +114,9 @@ internal sealed class FakeWebClient : IWebClient
     public void AddHtml(string url, string html, string? finalUrl = null) =>
         _pages[url] = new WebPage(new Uri(finalUrl ?? url), "text/html; charset=utf-8", Encoding.UTF8.GetBytes(html));
 
+    public void AddBytes(string url, byte[] content, string contentType = "application/octet-stream") =>
+        _pages[url] = new WebPage(new Uri(url), contentType, content);
+
     public void AddFeed(string url) =>
         _pages[url] = new WebPage(new Uri(url), "application/rss+xml", Encoding.UTF8.GetBytes("""<rss version="2.0"><channel /></rss>"""));
 

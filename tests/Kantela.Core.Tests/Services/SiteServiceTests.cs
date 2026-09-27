@@ -93,6 +93,34 @@ public sealed class SiteServiceTests
     }
 
     [TestMethod]
+    public async Task SetIconAsync_ReplacesAndRemovesIcon()
+    {
+        Site a = await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
+
+        await _service.SetIconAsync(a.Id, new FaviconImage("image/png", [1]));
+        await _service.SetIconAsync(a.Id, new FaviconImage("image/x-icon", [2]));
+        FaviconImage replaced = (await _service.GetIconsAsync())[a.Id];
+        await _service.SetIconAsync(a.Id, null);
+
+        Assert.AreEqual("image/x-icon", replaced.ContentType);
+        CollectionAssert.AreEqual(new byte[] { 2 }, replaced.Data);
+        Assert.IsEmpty(await _service.GetIconsAsync());
+    }
+
+    [TestMethod]
+    public async Task DeleteAsync_AlsoDeletesIcon()
+    {
+        Site a = await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));
+        Site b = await _service.AddAsync(new SiteInput("B", "https://b.invalid/", null));
+        await _service.SetIconAsync(a.Id, new FaviconImage("image/png", [1]));
+        await _service.SetIconAsync(b.Id, new FaviconImage("image/png", [2]));
+
+        await _service.DeleteAsync(a.Id);
+
+        CollectionAssert.AreEqual(new[] { b.Id }, (await _service.GetIconsAsync()).Keys.ToArray());
+    }
+
+    [TestMethod]
     public async Task MarkVisitedAsync_StoresCurrentTime()
     {
         Site site = await _service.AddAsync(new SiteInput("A", "https://a.invalid/", null));

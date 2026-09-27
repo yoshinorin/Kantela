@@ -73,7 +73,8 @@ public sealed class BookmarkTransferServiceTests
     [TestMethod]
     public async Task Replace_DeletesExistingSitesAfterBackingThemUp()
     {
-        await _siteService.AddAsync(new SiteInput("Old", "https://old.invalid/", null));
+        Site old = await _siteService.AddAsync(new SiteInput("Old", "https://old.invalid/", null));
+        await _siteService.SetIconAsync(old.Id, new FaviconImage("image/png", [1]));
 
         ImportResult result = await _transferService.ImportAsync(
             [new ImportedSite("New", "https://new.invalid/", null)],
@@ -81,6 +82,7 @@ public sealed class BookmarkTransferServiceTests
 
         Assert.AreEqual(new ImportResult(1, 0, 0), result);
         Assert.AreEqual("New", (await _siteService.GetAllAsync()).Single().Title);
+        Assert.IsEmpty(await _siteService.GetIconsAsync());
         string backup = Directory.GetFiles(BackupDirectory).Single();
         await using FileStream stream = File.OpenRead(backup);
         Assert.AreEqual("https://old.invalid/", JsonBookmarkFormat.Read(stream).Single().Url);

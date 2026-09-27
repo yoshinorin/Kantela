@@ -136,17 +136,24 @@
                                 Text="{x:Bind Number, Mode=OneWay}"
                                 Style="{StaticResource CaptionTextBlockStyle}"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <StackPanel Grid.Column="1">
-                                <TextBlock
-                                    Text="{x:Bind DisplayName, Mode=OneWay}"
-                                    Style="{StaticResource BodyStrongTextBlockStyle}"
-                                    TextTrimming="CharacterEllipsis" />
-                                <TextBlock
-                                    Text="{x:Bind Url, Mode=OneWay}"
-                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
+                            <Grid Grid.Column="1" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <controls:SiteIconView VerticalAlignment="Center" Icon="{x:Bind Icon, Mode=OneWay}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock
+                                        Text="{x:Bind DisplayName, Mode=OneWay}"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Text="{x:Bind Url, Mode=OneWay}"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
                             <TextBlock
                                 Grid.Column="2"
                                 VerticalAlignment="Center"

@@ -8,6 +8,8 @@ public class KantelaDbContext(DbContextOptions<KantelaDbContext> options) : DbCo
 {
     public DbSet<Site> Sites => Set<Site>();
 
+    public DbSet<SiteIcon> SiteIcons => Set<SiteIcon>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
@@ -18,6 +20,15 @@ public class KantelaDbContext(DbContextOptions<KantelaDbContext> options) : DbCo
         modelBuilder.Entity<Site>(entity =>
         {
             entity.HasIndex(s => s.Url).IsUnique();
+        });
+
+        modelBuilder.Entity<SiteIcon>(entity =>
+        {
+            entity.HasKey(i => i.SiteId);
+            entity.HasOne<Site>()
+                .WithOne()
+                .HasForeignKey<SiteIcon>(i => i.SiteId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

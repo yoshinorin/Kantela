@@ -93,6 +93,32 @@ public sealed class SiteService(
         return previewedAt;
     }
 
+    public async Task<IReadOnlyDictionary<int, FaviconImage>> GetIconsAsync(CancellationToken cancellationToken = default)
+    {
+        await using KantelaDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await db.SiteIcons
+            .AsNoTracking()
+            .ToDictionaryAsync(i => i.SiteId, i => new FaviconImage(i.ContentType, i.Data), cancellationToken);
+    }
+
+    // Replaces the icon of the site; null removes it.
+    public async Task SetIconAsync(int siteId, FaviconImage? icon, CancellationToken cancellationToken = default)
+    {
+        await using KantelaDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await db.SiteIcons.Where(i => i.SiteId == siteId).ExecuteDeleteAsync(cancellationToken);
+        if (icon is not null)
+        {
+            db.SiteIcons.Add(new SiteIcon
+            {
+                SiteId = siteId,
+                ContentType = icon.ContentType,
+                Data = icon.Data,
+                FetchedAt = timeProvider.GetUtcNow().UtcDateTime,
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     // Throws DuplicateSiteUrlException when another site has the same URL after normalization (see UrlNormalizer).
     public async Task EnsureUrlIsAvailableAsync(string url, int? excludedId = null, CancellationToken cancellationToken = default)
     {

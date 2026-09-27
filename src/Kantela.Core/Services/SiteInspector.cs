@@ -1,3 +1,4 @@
+using Kantela.Core.Models;
 using Kantela.Core.Services.Web;
 using Microsoft.Extensions.Logging;
 
@@ -6,16 +7,23 @@ namespace Kantela.Core.Services;
 // A reason why a site cannot be saved, meant to be shown to the user as is.
 public class SiteRegistrationException(string message) : Exception(message);
 
+// Icon is null when no favicon could be fetched. UrlChanged tells whether a previously saved icon belongs to another URL.
+public sealed record SiteInspection(SiteInput Input, FaviconImage? Icon, bool UrlChanged);
+
 public sealed class SiteInspector(IWebClient webClient, ILogger<SiteInspector> logger)
 {
-    // Checks the site before saving and fills in what the user left empty:
-    // - The site must be reachable. Its page is fetched when the site is new, its URL changed, or the title is empty.
+    private const int MaxIconBytes = 256 * 1024;
+
+    // Checks the site before saving and fills in what the user left empty. The page is fetched on every save:
+    // - The site must be reachable when it is new or its URL changed. An existing site whose URL is unchanged
+    //   can still be saved while it is unreachable (unless the title is empty), without refreshing anything.
     // - An empty title is taken from the page (or the URL when the page has none).
     // - An empty feed URL is detected from the page when the site is new or its URL changed.
     //   Several candidates are an error, so that the user chooses one; none is fine.
     // - A feed URL entered by the user must point to a feed. It is checked when the site is new or it changed.
+    // - The favicon is fetched from the page; failing to get it does not prevent saving.
     // current is the saved state when editing an existing site.
-    public async Task<SiteInput> InspectAsync(
+    public async Task<SiteInspection> InspectAsync(
         SiteInput input, SiteInput? current = null, CancellationToken cancellationToken = default)
     {
         string url = input.Url.Trim();
@@ -28,13 +36,21 @@ public sealed class SiteInspector(IWebClient webClient, ILogger<SiteInspector> l
 
         bool urlChanged = current is null || UrlNormalizer.ComparisonKey(url) != UrlNormalizer.ComparisonKey(current.Url);
         bool feedUrlEntered = feedUrl is not null && (current is null || feedUrl != Blank(current.FeedUrl));
+        FaviconImage? icon = null;
 
-        if (urlChanged || title.Length == 0)
+        WebPage? page = await webClient.GetAsync(new Uri(url), cancellationToken);
+        if (page is null)
         {
-            WebPage page = await webClient.GetAsync(new Uri(url), cancellationToken)
-                ?? throw new SiteRegistrationException($"Could not reach '{url}'. Check the URL and your connection.");
-            PageMetadata metadata = await PageParser.ParseHtmlAsync(page, cancellationToken);
+            if (urlChanged || title.Length == 0)
+            {
+                throw new SiteRegistrationException($"Could not reach '{url}'. Check the URL and your connection.");
+            }
 
+            logger.LogWarning("Could not reach {Url}; saving it without refreshing its icon", url);
+        }
+        else
+        {
+            PageMetadata metadata = await PageParser.ParseHtmlAsync(page, cancellationToken);
             if (title.Length == 0)
             {
                 title = metadata.Title ?? url;
@@ -55,6 +71,8 @@ public sealed class SiteInspector(IWebClient webClient, ILogger<SiteInspector> l
                     logger.LogInformation("Detected feed {FeedUrl} for {Url}", feedUrl, url);
                 }
             }
+
+            icon = await FetchIconAsync(metadata.IconUrls, cancellationToken);
         }
 
         if (feedUrlEntered)
@@ -62,7 +80,31 @@ public sealed class SiteInspector(IWebClient webClient, ILogger<SiteInspector> l
             await EnsureFeedAsync(feedUrl!, cancellationToken);
         }
 
-        return input with { Title = title, Url = url, FeedUrl = feedUrl };
+        return new SiteInspection(input with { Title = title, Url = url, FeedUrl = feedUrl }, icon, urlChanged);
+    }
+
+    // Returns the first candidate that is a supported image of an acceptable size.
+    private async Task<FaviconImage?> FetchIconAsync(IReadOnlyList<string> iconUrls, CancellationToken cancellationToken)
+    {
+        foreach (string iconUrl in iconUrls)
+        {
+            WebPage? response = await webClient.GetAsync(new Uri(iconUrl), cancellationToken);
+            if (response is null)
+            {
+                continue;
+            }
+
+            string? contentType = PageParser.ImageContentType(response.Content);
+            if (contentType is null || response.Content.Length > MaxIconBytes)
+            {
+                logger.LogInformation("Ignored {IconUrl}: not a supported image or too large", iconUrl);
+                continue;
+            }
+
+            return new FaviconImage(contentType, response.Content);
+        }
+
+        return null;
     }
 
     private async Task EnsureFeedAsync(string feedUrl, CancellationToken cancellationToken)

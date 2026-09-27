@@ -5,7 +5,10 @@
 - A replacement for browser bookmarks.
 - Values visiting sites directly: Kantela is **not** a feed reader.
   - It only tells whether a site has been updated.
-  - Article contents are never stored.
+  - Article contents are never stored. What is stored about a site is limited to what identifies it:
+    the fields the user registers (partly filled in from the site's page on registration: title and feed URL)
+    and a cached favicon (see "Favicon" below).
+  - The preview keeps no browsing data (see "Preview").
 
 ## 2. Technology Stack
 
@@ -71,7 +74,18 @@ class Site
     DateTime? LastVisitedAt;     // UTC. Opened in the browser
     DateTime? LastPreviewedAt;   // UTC. Preview loaded successfully (added by migration AddLastPreviewedAt)
 }
+
+// Cached favicon, one per site (added by migration AddSiteIcons).
+class SiteIcon
+{
+    int SiteId;                  // Primary key; foreign key to Site.Id with ON DELETE CASCADE
+    string ContentType;          // Detected from the content, e.g. image/png, image/x-icon, image/svg+xml
+    byte[] Data;                 // At most 256 KB
+    DateTime FetchedAt;          // UTC
+}
 ```
+
+- SQLite foreign keys are enabled explicitly in the connection string (`Foreign Keys=True`) so that the cascade works, including for `ExecuteDelete` (Import in Replace mode).
 
 - All timestamps are stored as UTC `DateTime`. `DateTimeOffset` is avoided because the EF Core SQLite provider cannot translate ordering/comparison on it.
 - All sites are kept in a single **flat** list. There is no folder/category grouping.
@@ -133,7 +147,7 @@ Interactions:
   - Only mouse wheel input is forwarded, via the DevTools Protocol (`Input.dispatchMouseEvent`), so the page can be scrolled.
   - Only the navigation started by Kantela (and its redirects) is allowed; page-initiated navigations are cancelled.
   - Muted; context menus, DevTools, browser accelerator keys, script dialogs, downloads and new windows are disabled.
-- No browsing data is kept: the WebView2 runs in InPrivate mode, and its user data folder is deleted before the first use in each run.
+- The preview keeps no browsing data (cookies, cache, history): the WebView2 runs in InPrivate mode, and its user data folder is deleted before the first use in each run. The favicon shown in the list is not taken from the preview; it is fetched on registration (see "Favicon").
 - Requires the WebView2 Runtime (preinstalled on Windows 11).
 
 ### Site Registration
@@ -141,13 +155,14 @@ Interactions:
 Done by `SiteInspector` when a site is saved from the dialog (add or edit). Import does not access the network.
 
 1. Duplicate check by normalized URL. A registered site is not fetched.
-2. The site's page is fetched when the site is new, its URL changed, or the title is empty. If it cannot be fetched (network error, timeout, or a 4xx/5xx status after redirects), the site is not saved.
+2. The site's page is fetched on every save. If it cannot be fetched (network error, timeout, or a 4xx/5xx status after redirects), the site is not saved, except when editing a site whose URL is unchanged and whose title is given: then it is saved without refreshing anything, so that a temporarily unreachable site can still be edited.
 3. An empty title is taken from `<title>` (whitespace collapsed), or the URL when the page has none.
 4. An empty feed URL is detected from `<link rel="alternate" type="application/rss+xml|application/atom+xml">`, resolved against the final page address, when the site is new or its URL changed.
    - None: saved without a feed.
    - One: used.
    - Several: not saved; the candidates are listed so that the user enters one.
 5. A feed URL entered by the user (new, or changed when editing) must be reachable and its root element must be `rss`, `feed` or `RDF`; otherwise the site is not saved.
+6. The favicon is fetched (see "Favicon"). Failing to get one never prevents saving.
 
 HTTP (`HttpWebClient`):
 
@@ -156,6 +171,19 @@ HTTP (`HttpWebClient`):
 - Character encodings from `Content-Type` or `<meta>` are handled by AngleSharp, with the code pages provider registered for legacy encodings such as Shift_JIS.
 - Feed XML is read with DTD processing ignored and no resolver.
 - Closing the dialog while checking cancels the check.
+
+### Favicon
+
+Handled like browsers do (Chrome's `Favicons` and Firefox's `favicons.sqlite` databases): a cache stored as BLOBs in SQLite, separate from the site data, that can be fetched again at any time.
+
+- Fetched only from the site itself, on every save from the dialog. No third-party favicon service is used, so that registered sites are not disclosed to anyone else. There is no automatic refresh and no manual refresh command; imported sites have no icon until they are edited and saved.
+- Candidates, tried in order until one succeeds:
+  1. Up to two icons declared by `<link rel="icon">` (including `shortcut icon`) or `apple-touch-icon`: SVG first, then the declared size closest to 32 px; Apple touch icons after regular icons. `data:` URLs are not used.
+  2. `/favicon.ico` of the page's final host.
+- The format is detected from the content (PNG, ICO, GIF, JPEG, BMP, WebP, SVG); anything else, such as an HTML error page, is ignored. Images over 256 KB are ignored.
+- Stored in the `SiteIcons` table of `kantela.db`. Deleted together with the site. When editing, a newly fetched icon replaces the saved one; if none is fetched, the saved icon is kept while the URL is unchanged and deleted when the URL changed (it belonged to the old URL).
+- Not included in backups or exports.
+- Shown at 20×20 to the left of the name and URL. SVG is rendered by `SvgImageSource`, which uses the "secure static" mode of the SVG specification (no scripts, animations or interactions; see the Windows App SDK documentation). Sites without an icon, or with an undecodable one, show a globe glyph.
 
 ## 7. Import / Export
 
@@ -212,7 +240,7 @@ Each import runs in a single transaction.
   - Abnormal exit: `Application.UnhandledException`, `AppDomain.CurrentDomain.UnhandledException`.
   - `TaskScheduler.UnobservedTaskException` is only logged: it does not terminate the process on .NET, so it is not an exit.
   - Not covered: forced termination (e.g. Task Manager), `StackOverflowException`, `Environment.FailFast`, power loss.
-- Format: the same JSON as the export.
+- Format: the same JSON as the export. Favicons are not included.
 - Location: `<data dir>/backups/kantela-yyyyMMdd-HHmmss.json`.
 - Written to a temporary file and then renamed, so a partial write never replaces a valid backup.
 - Retention: the newest **5** files.
@@ -232,7 +260,7 @@ Each import runs in a single transaction.
 ## 10. Storage Locations
 
 - Data directory: `%LOCALAPPDATA%\Kantela\`
-  - `kantela.db`
+  - `kantela.db` (sites and cached favicons)
   - `backups\`
   - `logs\`
   - `WebView2\` (WebView2 user data for previews; deleted on each start)

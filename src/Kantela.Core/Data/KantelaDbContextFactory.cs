@@ -11,7 +11,8 @@ public sealed class KantelaDbContextFactory(DbContextOptions<KantelaDbContext> o
 
     public static KantelaDbContextFactory ForFile(string databasePath)
     {
-        string connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath }.ToString();
+        // Foreign keys are required so that deleting a site also deletes its icon.
+        string connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath, ForeignKeys = true }.ToString();
         return new KantelaDbContextFactory(
             new DbContextOptionsBuilder<KantelaDbContext>().UseSqlite(connectionString).Options);
     }

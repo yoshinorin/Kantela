@@ -10,7 +10,7 @@ internal sealed class TestDatabase : IDisposable
 
     public TestDatabase()
     {
-        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=True");
         _connection.Open();
         Factory = new KantelaDbContextFactory(
             new DbContextOptionsBuilder<KantelaDbContext>().UseSqlite(_connection).Options);

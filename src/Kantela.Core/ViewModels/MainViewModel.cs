@@ -26,8 +26,10 @@ public sealed partial class MainViewModel(
     public async Task LoadAsync()
     {
         IReadOnlyList<Site> sites = await siteService.GetAllAsync();
+        IReadOnlyDictionary<int, FaviconImage> icons = await siteService.GetIconsAsync();
         Sites.Clear();
-        foreach (SiteItemViewModel site in Sorted(sites.Select(s => new SiteItemViewModel(s)), Sort))
+        IEnumerable<SiteItemViewModel> items = sites.Select(s => new SiteItemViewModel(s) { Icon = icons.GetValueOrDefault(s.Id) });
+        foreach (SiteItemViewModel site in Sorted(items, Sort))
         {
             Sites.Add(site);
         }
@@ -162,17 +164,27 @@ public sealed partial class MainViewModel(
         {
             await siteService.EnsureUrlIsAvailableAsync(input.Url, existing?.Id, cancellationToken);
             SiteInput? current = existing is null ? null : new SiteInput(existing.Title, existing.Url, existing.FeedUrl);
-            SiteInput inspected = await siteInspector.InspectAsync(input, current, cancellationToken);
+            SiteInspection inspection = await siteInspector.InspectAsync(input, current, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
+            SiteItemViewModel item;
             if (existing is null)
             {
-                Site site = await siteService.AddAsync(inspected, CancellationToken.None);
-                Sites.Add(new SiteItemViewModel(site) { Number = Sites.Count + 1 });
+                Site site = await siteService.AddAsync(inspection.Input, CancellationToken.None);
+                item = new SiteItemViewModel(site) { Number = Sites.Count + 1 };
+                Sites.Add(item);
             }
             else
             {
-                existing.Apply(await siteService.UpdateAsync(existing.Id, inspected, CancellationToken.None));
+                existing.Apply(await siteService.UpdateAsync(existing.Id, inspection.Input, CancellationToken.None));
+                item = existing;
+            }
+
+            // A new icon replaces the saved one. Without one, the saved icon is kept only while the URL is unchanged.
+            if (inspection.Icon is not null || inspection.UrlChanged)
+            {
+                await siteService.SetIconAsync(item.Id, inspection.Icon, CancellationToken.None);
+                item.Icon = inspection.Icon;
             }
         }
         catch (Exception ex) when (ex is not SiteRegistrationException and not OperationCanceledException)
